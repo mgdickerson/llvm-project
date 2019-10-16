@@ -249,6 +249,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "sanitize_hwaddress";
   if (hasAttribute(Attribute::AlwaysInline))
     return "alwaysinline";
+  if (hasAttribute(Attribute::Untrusted))
+    return "untrusted";
   if (hasAttribute(Attribute::ArgMemOnly))
     return "argmemonly";
   if (hasAttribute(Attribute::Builtin))

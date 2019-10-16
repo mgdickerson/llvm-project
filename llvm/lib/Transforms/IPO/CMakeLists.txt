@@ -34,6 +34,7 @@ add_llvm_library(LLVMipo
   StripSymbols.cpp
   SyntheticCountsPropagation.cpp
   ThinLTOBitcodeWriter.cpp
+  UntrustedAlloc.cpp
   WholeProgramDevirt.cpp
 
   ADDITIONAL_HEADER_DIRS

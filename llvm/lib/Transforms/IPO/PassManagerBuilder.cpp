@@ -774,6 +774,8 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   // Infer attributes about declarations if possible.
   PM.add(createInferFunctionAttrsLegacyPass());
 
+  PM.add(createUntrustedAllocPass());
+
   if (OptLevel > 1) {
     // Split call-site with more constrained arguments.
     PM.add(createCallSiteSplittingPass());
@@ -971,6 +973,7 @@ void PassManagerBuilder::populateLTOPassManager(legacy::PassManagerBase &PM) {
   if (OptLevel != 0)
     addLTOOptimizationPasses(PM);
   else {
+    PM.add(createUntrustedAllocPass());
     // The whole-program-devirt pass needs to run at -O0 because only it knows
     // about the llvm.type.checked.load intrinsic: it needs to both lower the
     // intrinsic itself and handle it in the summary.
