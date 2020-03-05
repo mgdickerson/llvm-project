@@ -1188,7 +1188,7 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
   case Attribute::SpeculativeLoadHardening:
     return 1ULL << 60;
   case Attribute::Untrusted:       return 1ULL << 61;
-  case Attribute::UntrustedAllocator:       return 1ULL << 62;
+  case Attribute::RustAllocator:       return 1ULL << 62;
   case Attribute::Dereferenceable:
     llvm_unreachable("dereferenceable attribute not supported in raw format");
     break;
@@ -1427,8 +1427,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::ZExt;
   case bitc::ATTR_KIND_UNTRUSTED:
     return Attribute::Untrusted;
-  case bitc::ATTR_KIND_UNTRUSTED_ALLOCATOR:
-    return Attribute::UntrustedAllocator;
+  case bitc::ATTR_KIND_RUST_ALLOCATOR:
+    return Attribute::RustAllocator;
   }
 }
 

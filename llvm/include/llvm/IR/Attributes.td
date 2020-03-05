@@ -25,7 +25,7 @@ def AlwaysInline : EnumAttr<"alwaysinline">;
 
 /// UntrustedFunction
 def Untrusted : EnumAttr<"untrusted">;
-def UntrustedAllocator : EnumAttr<"untrusted_allocator">;
+def RustAllocator : EnumAttr<"rust_allocator">;
 
 /// Function can access memory only using pointers based on its arguments.
 def ArgMemOnly : EnumAttr<"argmemonly">;
