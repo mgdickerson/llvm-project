@@ -1483,6 +1483,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::NoInline:
   case Attribute::AlwaysInline:
   case Attribute::Untrusted:
+  case Attribute::UntrustedAllocator:
   case Attribute::OptimizeForSize:
   case Attribute::StackProtect:
   case Attribute::StackProtectReq:

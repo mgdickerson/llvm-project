@@ -630,6 +630,7 @@ lltok::Kind LLLexer::LexIdentifier() {
 
   KEYWORD(alwaysinline);
   KEYWORD(untrusted);
+  KEYWORD(untrusted_allocator);
   KEYWORD(allocsize);
   KEYWORD(argmemonly);
   KEYWORD(builtin);

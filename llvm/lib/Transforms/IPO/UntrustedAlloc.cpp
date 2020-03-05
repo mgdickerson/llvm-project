@@ -175,6 +175,25 @@ public:
                    << " __rust_alloc() call sites\n";
     }
 
+    for (auto cs : UntrustedCallSites) {
+      for (auto &param : cs.args()) {
+        auto val = param.get();
+        auto *F = cs.getCaller();
+        AAResults &AA = getAnalysis<AAResultsWrapperPass>(*F).getAAResults();
+        for (auto EM : ExchangeMallocCallSites) {
+          if (EM.getCaller() == F) {
+            if (AA.alias(EM.getInstruction(), val)) {
+              errs() << "\n##########################################\n";
+              errs() << "Found Aliasing Exchange Malloc Callsite\n";
+              errs() << "\n##########################################\n";
+              patchExchangeMalloc(EM);
+              EM.getCalledFunction()->removeFnAttr(Attribute::NoInline);
+            }
+          }
+        }
+      }
+    }
+
     scanCG(M);
 
     bool MultipleVisits = false;
@@ -246,14 +265,16 @@ public:
         errs() << "\n==========================================\n";
         errs() << "Alias list for : " << *RetVal << "\n";
         for (auto A : aliases) {
-          A->dump();
+          // A->dump();
+          errs() << A << "\n";
         }
         errs() << "\n==========================================\n\n";
       } else if (debug) {
         errs() << "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
         errs() << " Display Bad Function\n";
         errs() << " Function IR: " << F->getName() << "\n";
-        F->dump();
+        // F->dump();
+        errs() << *F << "\n";
         errs() << "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
       }
 
@@ -289,7 +310,7 @@ public:
       ++CGI;
       if (!CurSCC.isSingular()) {
         for (CallGraphNode *SCCNode : CurSCC) {
-          //SCCNode->dump();
+          // SCCNode->dump();
         }
         return;
       }
@@ -317,9 +338,11 @@ public:
             errs() << "\n##########################################\n";
             errs() << CGNode->getFunction()->getName() << " Calls:\n";
             for (auto *Node : visited_nodes) {
-              if(!Node)continue;
+              if (!Node)
+                continue;
               auto F = Node->getFunction();
-              if(!F)continue;
+              if (!F)
+                continue;
               errs() << F->getName() << " \n";
             }
             errs() << "\n##########################################\n";
@@ -328,9 +351,11 @@ public:
             errs() << "\n##########################################\n";
             errs() << CGNode->getFunction()->getName() << " Calls:\n";
             for (auto *Node : external_nodes) {
-              if(!Node)continue;
+              if (!Node)
+                continue;
               auto F = Node->getFunction();
-              if(!F)continue;
+              if (!F)
+                continue;
               errs() << F->getName() << " \n";
             }
             errs() << "\n#################  external_nodes  "
@@ -677,7 +702,7 @@ public:
     for (auto A : aliases) {
       errs() << "\n==========================================\n";
       errs() << " Value: " << *Inst << " Aliases:\n";
-      A->dump();
+      errs() << A << "\n"; // A->dump();
       errs() << "==========================================\n\n";
     }
     errs() << "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
@@ -792,7 +817,8 @@ public:
     auto UntrustedVal = MemoryLocation(val, LocationSize::unknown());
     auto &aliases = AST.getAliasSetFor(UntrustedVal);
     // auto &aliases = AST.findAliasSetForUnknownInst(val);
-    aliases.dump();
+    // aliases.dump();
+    errs() << aliases << "\n";
     int i = 0;
     errs() << "Examining Alias set -- size: " << aliases.size() << "\n";
     for (auto inst : aliases) {
@@ -832,11 +858,12 @@ public:
         // check_value(inst.getValue(), F);
         errs() << "Not a call or an argument -- check all "
                   "aliases\n";
-        inst.getValue()->dump(); //<< "\n";
+        errs() << inst.getValue() << "\n";
+        // inst.getValue()->dump(); //<< "\n";
         if (ValInst)
           check_aliases(ValInst, F, AA);
 
-        F->dump();
+        // F->dump();
 
         // for (auto &BB : *F)
         // for (auto &I : BB) {
@@ -904,8 +931,10 @@ public:
                       "Checking for "
                       "Function: "
                    << F->getName() << "----\n";
-            Arg.dump();
-            I.dump();
+            errs() << Arg << "\n";
+            // Arg.dump();
+            // I.dump();
+            errs() << I << "\n";
             // get arg number
             auto ArgNum = Arg.getArgNo();
             checkParentCallSite(F, ArgNum);
