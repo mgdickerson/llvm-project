@@ -459,6 +459,30 @@ else()
   set(LINK_POLLY_INTO_TOOLS OFF)
 endif()
 
+
+option(LLVM_SEA_DSA_LINK_INTO_TOOLS "Statically link SeaDsa into tools (if available)" ON)
+option(LLVM_SEA_DSA_BUILD "Build LLVM with SeaDsa" ON)
+
+if (EXISTS ${LLVM_MAIN_SRC_DIR}/projects/sea-dsa/CMakeLists.txt)
+  set(SEA_DSA_IN_TREE TRUE)
+elseif(LLVM_EXTERNAL_SEA_DSA_SOURCE_DIR)
+  set(SEA_DSA_IN_TREE TRUE)
+else()
+  set(SEA_DSA_IN_TREE FALSE)
+endif()
+
+if (LLVM_SEA_DSA_BUILD AND SEA_DSA_IN_TREE)
+  set(WITH_SEA_DSA ON)
+else()
+  set(WITH_SEA_DSA OFF)
+endif()
+
+if (LLVM_SEA_DSA_LINK_INTO_TOOLS AND WITH_SEA_DSA)
+  set(LINK_SEA_DSA_INTO_TOOLS ON)
+else()
+  set(LINK_SEA_DSA_INTO_TOOLS OFF)
+endif()
+
 # Define an option controlling whether we should build for 32-bit on 64-bit
 # platforms, where supported.
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32 )

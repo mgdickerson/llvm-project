@@ -17,6 +17,15 @@ else()
   set(LLVM_TOOL_POLLY_BUILD Off)
 endif()
 
+
+# Build sea-dsa before the tools: the tools link against sea-dsa when
+# LINK_SEA_DSA_INTO_TOOLS is set.
+if(WITH_SEA_DSA)
+  add_llvm_external_project(sea-dsa)
+else()
+  set(LLVM_TOOL_SEA_DSA_BUILD Off)
+endif()
+
 if(NOT LLVM_BUILD_LLVM_DYLIB AND NOT LLVM_BUILD_LLVM_C_DYLIB)
   set(LLVM_TOOL_LLVM_SHLIB_BUILD Off)
 endif()
