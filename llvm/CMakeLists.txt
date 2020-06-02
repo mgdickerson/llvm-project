@@ -483,6 +483,30 @@ else()
   set(LINK_SEA_DSA_INTO_TOOLS OFF)
 endif()
 
+
+option(LLVM_PHASAR_LINK_INTO_TOOLS "Statically link Phasar into tools (if available)" ON)
+option(LLVM_PHASAR_BUILD "Build LLVM with Phasar" ON)
+
+if (EXISTS ${LLVM_MAIN_SRC_DIR}/projects/phasar/CMakeLists.txt)
+  set(PHASAR_IN_TREE TRUE)
+elseif(LLVM_EXTERNAL_PHASAR_SOURCE_DIR)
+  set(PHASAR_IN_TREE TRUE)
+else()
+  set(PHASAR_IN_TREE FALSE)
+endif()
+
+if (LLVM_PHASAR_BUILD AND PHASAR_IN_TREE)
+  set(WITH_PHASAR ON)
+else()
+  set(WITH_PHASAR OFF)
+endif()
+
+if (LLVM_PHASAR_LINK_INTO_TOOLS AND WITH_PHASAR)
+  set(LINK_PHASAR_INTO_TOOLS ON)
+else()
+  set(LINK_PHASAR_INTO_TOOLS OFF)
+endif()
+
 # Define an option controlling whether we should build for 32-bit on 64-bit
 # platforms, where supported.
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32 )
