@@ -1,12 +1,12 @@
 #include <stddef.h>
+#include <map>
 
 // TODO : Question: Can we assume that threaded requests for allocation will not overlap? Or will 
 // I need to make locks for inserting and retrieving allocations from AllocSiteHandler?
 class AllocSiteHandler {
     private:
-        // Some storage data here, for now just a void*
-        // will likely be at some point some kind of tree to handle
-        // allocations over sizes > 1.
+        // Mapping from memory location pointer to AllocationSite
+        std::map<uintptr_t, void*> allocation_map;
         void* ptr;
     public:
         AllocSiteHandler (void*);
