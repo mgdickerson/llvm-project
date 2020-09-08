@@ -69,6 +69,18 @@ namespace
 
             bool runOnModule(Module &M) override {
                 // Call Main functionality here?
+
+                // Make function hook to add to all functions we wish to track
+                Constant *hookFunc = M.getOrInsertFunction("allocHandlerHook", Type::getVoidTy(M.getContext()), string);
+                hook = cast<Function>(hookFunc);
+            }
+
+            /// Adds function hook to beginning of a given Function* F
+            void addFunctionHooks(Function *F) {
+                BasicBlock *BB = F->getEntryBlock();
+                // TODO : I think this gets overridden to (*Func, Args...)
+                Instruction *callInst = CallInst::Create(hook, F->getName());
+                BB->getInstList().insert(0, callInst);
             }
 
             void loadCallGraph(Module &M) {
@@ -122,5 +134,6 @@ namespace
         LazyCallGraph &LCG = getAnalysis<LazyCallGraphAnalysis>().getGraph();
         std::set<Function *> VisitedFunctions;
         std::vector<Function *> GraphNodeVisitor;
+        Function *hook;
     }
 }

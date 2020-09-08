@@ -13,6 +13,7 @@ class AllocSiteHandler {
         void track_alloc(void* ptr, size_t size, size_t align);
         void untrack_alloc(void* ptr, size_t size, size_t align);
         void track_realloc(void* old_ptr, size_t old_size, void* new_ptr, size_t new_size, size_t align);
+        void allocHandlerHook(string funcName);
 };
 
 AllocSiteHandler GlobalHandler = AllocSiteHandler(nullptr);
