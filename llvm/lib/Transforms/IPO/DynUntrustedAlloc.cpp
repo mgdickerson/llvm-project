@@ -102,7 +102,7 @@ namespace
             }
 
             /// Adds function hook to beginning of a given Function* F
-            void addFunctionHooks(Function *F) {
+            void addFunctionHooks(CallSite CS) {
                 BasicBlock *BB = F->getEntryBlock();
                 // TODO : I think this gets overridden to (*Func, Args...)
                 Instruction *callInst = CallInst::Create(hook, F->getName());
@@ -134,25 +134,23 @@ namespace
                     }
                     
                     if (F->hasFnAttribute(Attribute::RustAllocator)) {
-                        // Functions has RustAllocator Attr, check for and collapse
-                        // parent calls that also have the attribute.
-                        std::set<Function *> sccCheck;
-                        sccCheck.insert(F);
+                        // Function has RustAllocator attribute, instrument call stack.
+                        traverseFunctionCallStack(F);
                     }
                 }
             }
 
-            std::vector<Function*> getFunctionRoot(Function *F) {
+            void traverseFunctionCallStack(Function *F) {
                 std::vector<Function*> WorkingSet {F};
-                std::vector<Function*> ReturnSet;
 
                 // Loop over functions until last RustAllocator function is found.
                 while (!WorkingSet.empty()) {
                     // Get Current Function, pop from WorkingSet
                     Function *CF = WorkingSet.back();
+                    VisitedFunctions.insert(CF);
                     WorkingSet.pop_back();
 
-                    auto FuncNode = CG[F];
+                    auto FuncNode = CG[CF];
                     for (auto CR : *FuncNode) {
                         auto ParentNode = CR.second;
                         if (!ParentNode) {
@@ -174,16 +172,14 @@ namespace
                                 errs() << "Successfully inlined: " << CS.getCaller()->getName() << "\n";
                             }
 
+
                             WorkingSet.push_back(PF);
                         } else {
-                            // Parent Function does not have RustAllocator attribute, so we add instrumentation here. 
-                            // Or we just add it to the ReturnSet and handle later.
-                            // TODO : Instrumentation.
+                            // Parent Function does not have RustAllocator attribute,
+                            // instrument call site 
                         }
                     }
                 }
-
-                return ReturnSet;
             }
 
         private:
@@ -191,6 +187,7 @@ namespace
         LazyCallGraph &LCG = getAnalysis<LazyCallGraphAnalysis>().getGraph();
         std::set<Function *> VisitedFunctions;
         std::vector<Function *> GraphNodeVisitor;
+        std::set<Function *> InstrumentFunctions;
         DenseMap<CallSite *, UniqueID> CSMap;
         Function *hook;
     };
