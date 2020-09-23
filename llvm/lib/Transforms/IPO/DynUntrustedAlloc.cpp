@@ -100,32 +100,33 @@ namespace
                 // Make function hook to add to all functions we wish to track
                 Constant *allocHookFunc = M.getOrInsertFunction("allocHook", 
                     Type::getVoidTy(M.getContext()), 
-                    Type::getInt8PtrTy(), 
-                    IntegerType::get(32), 
-                    StructType::create(M.getContext(), {IntegerType::get(32)}), 
+                    Type::getInt8PtrTy(M.getContext()), 
+                    IntegerType::get(M.getContext(), 32), 
+                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}), 
                     NULL);
                 allocHook = cast<Function>(allocHookFunc);
 
                 Constant *mallocHookFunc = M.getOrInsertFunction("mallocHook", 
                     Type::getVoidTy(M.getContext()), 
-                    Type::getInt8PtrTy(), 
-                    IntegerType::get(32), 
-                    Type::getInt8PtrTy(), 
-                    IntegerType::get(32), 
-                    StructType::create(M.getContext(), {IntegerType::get(32)}),
+                    Type::getInt8PtrTy(M.getContext()), 
+                    IntegerType::get(M.getContext(), 32), 
+                    Type::getInt8PtrTy(M.getContext()), 
+                    IntegerType::get(M.getContext(), 32), 
+                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}),
                     NULL);
                 mallocHook = cast<Function>(mallocHookFunc);
 
                 Constant *deallocHookFunc = M.getOrInsertFunction("deallocHook", 
                     Type::getVoidTy(M.getContext()), 
-                    Type::getInt8PtrTy(), 
-                    IntegerType::get(32), 
-                    StructType::create(M.getContext(), {IntegerType::get(32)}),
+                    Type::getInt8PtrTy(M.getContext()), 
+                    IntegerType::get(M.getContext(), 32), 
+                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}),
                     NULL);
                 deallocHook = cast<Function>(deallocHookFunc);
 
                 hookAllocFunctions(M);
                 removeInlineAttr(M);
+                return true;
             }
 
             /// Iterate over all functions we are looking for, and instrument them with hooks accordingly
@@ -173,7 +174,7 @@ namespace
 
             /// Iterate all Functions of Module M, remove NoInline attribute from Functions with RustAllocator attribute.
             void removeInlineAttr(Module &M) {
-                for (Function &F : M) {
+                for (Function *F : M) {
                     if (F->hasFnAttribute(Attribute::RustAllocator)) {
                         F->removeFnAttribute(Attribute::NoInline);
                     }
@@ -279,5 +280,5 @@ namespace
         Function *deallocHook;
     };
 
-    DynUntrustedAlloc::ID = 0;
+    char DynUntrustedAlloc::ID = 0;
 };
