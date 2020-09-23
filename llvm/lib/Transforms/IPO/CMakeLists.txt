@@ -7,6 +7,7 @@ add_llvm_library(LLVMipo
   ConstantMerge.cpp
   CrossDSOCFI.cpp
   DeadArgumentElimination.cpp
+  DynUntrustedAlloc.cpp
   ElimAvailExtern.cpp
   ExtractGV.cpp
   ForceFunctionAttrs.cpp

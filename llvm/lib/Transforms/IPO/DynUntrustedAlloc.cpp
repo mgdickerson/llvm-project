@@ -25,6 +25,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 
+#include <string>
 #include <set>
 
 using namespace llvm;
@@ -52,7 +53,7 @@ namespace
 {
     bool isRustAlloc(Function *F) {
         auto name = F->getName().data();
-        return 0 == std::strncmp(name, TrustedAllocatorName, strlen(TrustedAllocatorName))
+        return 0 == std::strncmp(name, TrustedAllocatorName, strlen(TrustedAllocatorName));
     }
 
     class IDGenerator {
@@ -81,14 +82,14 @@ namespace
         public:
             static char ID;
 
-            DynUntrustedAlloc : ModulePass(ID) {
+            DynUntrustedAlloc() : ModulePass(ID) {
                 initializeDynUntrustedAllocPass(*PassRegistry::getPassRegistry());
             }
             virtual ~DynUntrustedAlloc() = default;
 
-            StringRef getPassName() const override {
-                StringRef(const char * "DynUntrustedAllocPass")
-            }
+            // StringRef getPassName() const override {
+            //     StringRef(const char * "DynUntrustedAllocPass")
+            // }
 
             bool runOnModule(Module &M) override {
                 // Pre-inline pass:
@@ -97,13 +98,30 @@ namespace
                 // NoInline attribute from RustAlloc functions.
 
                 // Make function hook to add to all functions we wish to track
-                Constant *allocHookFunc = M.getOrInsertFunction("allocHook", Type::getVoidTy(M.getContext()), *char, size_t, const UniqueID);
+                Constant *allocHookFunc = M.getOrInsertFunction("allocHook", 
+                    Type::getVoidTy(M.getContext()), 
+                    Type::getInt8PtrTy(), 
+                    IntegerType::get(32), 
+                    StructType::create(M.getContext(), {IntegerType::get(32)}), 
+                    NULL);
                 allocHook = cast<Function>(allocHookFunc);
 
-                Constant *mallocHookFunc = M.getOrInsertFunction("mallocHook", Type::getVoidTy(M.getContext()), *char, size_t, *char, size_t, const UniqueID);
+                Constant *mallocHookFunc = M.getOrInsertFunction("mallocHook", 
+                    Type::getVoidTy(M.getContext()), 
+                    Type::getInt8PtrTy(), 
+                    IntegerType::get(32), 
+                    Type::getInt8PtrTy(), 
+                    IntegerType::get(32), 
+                    StructType::create(M.getContext(), {IntegerType::get(32)}),
+                    NULL);
                 mallocHook = cast<Function>(mallocHookFunc);
 
-                Constant *deallocHookFunc = M.getOrInsertFunction("deallocHook", Type::getVoidTy(M.getContext()), *char, size_t, const UniqueID);
+                Constant *deallocHookFunc = M.getOrInsertFunction("deallocHook", 
+                    Type::getVoidTy(M.getContext()), 
+                    Type::getInt8PtrTy(), 
+                    IntegerType::get(32), 
+                    StructType::create(M.getContext(), {IntegerType::get(32)}),
+                    NULL);
                 deallocHook = cast<Function>(deallocHookFunc);
 
                 hookAllocFunctions(M);
@@ -113,31 +131,31 @@ namespace
             /// Iterate over all functions we are looking for, and instrument them with hooks accordingly
             void hookAllocFunctions(Module &M) {
                 string allocFuncs[4] = { "__rust_alloc", "__rust_untrusted_alloc",
-                                         "__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed" }
+                                         "__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed" };
                 for (auto allocName : allocFuncs ) {
                     Function *F = M.getFunction(allocName);
                     if (!F) {
-                        errs() << allocName << " is an invalid pointer: " << F << "\n";
+                        // errs() << allocName << " is an invalid pointer: " << F << "\n";
                         continue;
                     }
 
                     for (auto caller : F->users()) {
                         CallSite CS(caller);
                         if (!CS) {
-                            errs() << CS << " is not a callsite!\n";
+                            // errs() << CS << " is not a callsite!\n";
                             continue;
                         }
 
                         // For each valid CallSite of the given allocation function,
                         // we want to add function hooks.
-                        addFunctionHooks(CS, hook);
+                        addFunctionHooks(&CS, allocHook);
                     }
                 }
             }
 
             /// Add function hook after call site instruction. Initially place a dummy UUID, to be replaced in structured ascent later.
             /// Additional information required for hook: Size of allocation, and return address.
-            void addFunctionHooks(CallSite CS, Function* hookInst) {
+            void addFunctionHooks(CallSite *CS, Function* hookInst) {
                 // Get CallSite instruction and containing BasicBlock
                 Instruction *CSInst = CS->getInstruction();
                 BasicBlock *BB = CS->getParent();
@@ -168,7 +186,7 @@ namespace
                 CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
                 ReversePostOrderTraversal<Function *> RPOT(CG);
 
-                for (rpo_iterator BB = RPOT.begin(); BB != RPOT.end(); ++I) {
+                for (rpo_iterator BB = RPOT.begin(); BB != RPOT.end(); ++BB) {
                     for (BasicBlock::reverse_iterator inst = BB->rbgein(), end = BB->rend(); inst != end; ++inst) {
 
                     }
@@ -260,4 +278,6 @@ namespace
         Function *mallocHook;
         Function *deallocHook;
     };
+
+    DynUntrustedAlloc::ID = 0;
 };
