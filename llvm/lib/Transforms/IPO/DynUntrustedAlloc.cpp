@@ -102,8 +102,7 @@ namespace
                     Type::getVoidTy(M.getContext()), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}), 
-                    NULL);
+                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
                 allocHook = cast<Function>(allocHookFunc);
 
                 Constant *mallocHookFunc = M.getOrInsertFunction("mallocHook", 
@@ -112,8 +111,7 @@ namespace
                     IntegerType::get(M.getContext(), 32), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}),
-                    NULL);
+                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
                 mallocHook = cast<Function>(mallocHookFunc);
 
                 Constant *deallocHookFunc = M.getOrInsertFunction("deallocHook", 
@@ -131,7 +129,7 @@ namespace
 
             /// Iterate over all functions we are looking for, and instrument them with hooks accordingly
             void hookAllocFunctions(Module &M) {
-                string allocFuncs[4] = { "__rust_alloc", "__rust_untrusted_alloc",
+                std::string allocFuncs[4] = { "__rust_alloc", "__rust_untrusted_alloc",
                                          "__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed" };
                 for (auto allocName : allocFuncs ) {
                     Function *F = M.getFunction(allocName);
@@ -166,17 +164,17 @@ namespace
 
                 // Create hook call instruction (hookInst, return_ptr, ptr_size, UUID_placeholder)
                 // TODO : I think this gets overridden to (*Func, Args...)
-                Instruction *newHookInst = CallInst::Create(hookInst, {CSInst, CS->getArgument(0), UUID_dummy});
+                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), UUID_dummy});
                 
                 // Insert hook call after call site instruction
-                BB->getInstList().insertAfter(CSInst, newHookInst);
+                BB->getInstList().insertAfter((Instruction *)CSInst, (Instruction *)newHookInst);
             }
 
             /// Iterate all Functions of Module M, remove NoInline attribute from Functions with RustAllocator attribute.
             void removeInlineAttr(Module &M) {
-                for (Function *F : M) {
-                    if (F->hasFnAttribute(Attribute::RustAllocator)) {
-                        F->removeFnAttribute(Attribute::NoInline);
+                for (Function &F : M) {
+                    if (F.hasFnAttribute(Attribute::RustAllocator)) {
+                        F.removeFnAttribute(Attribute::NoInline);
                     }
                 }
             }
