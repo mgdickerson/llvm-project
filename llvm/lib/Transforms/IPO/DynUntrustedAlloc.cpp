@@ -15,6 +15,8 @@
 #include "llvm/Transforms/IPO/DynUntrustedAlloc.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/IR/Attributes.h"
@@ -36,53 +38,24 @@
 
 using namespace llvm;
 
-static const char *const TrustedAllocatorName = "__rust_alloc";
-
-/*
-    General Plan:
-    1) Get Call Graph, traverse in reverse order (callee -> caller), tracking 
-    visited nodes with visitor pattern.
-    2) Check each function for __rust_alloc attribute, then check callee's parent 
-    function to see if it is a Rust allocator. If it is, proceed to caller, and 
-    repeat until top level function is found. Instrument there.
-    3) Instrument top level function with book keeping calls to compiler-rt. 
-    In essence we want to top level allocation function associated with a given
-    memory allocation. (This could also double as a check for Rust allocations vs
-    generic allocations if we remove book keeping information after function exit.)
-
-    Book Keeping Info:
-    - Allocation function name
-    - (Some other unique identifier here...)
-*/
-
 namespace
 {
-    bool isRustAlloc(Function *F) {
-        auto name = F->getName().data();
-        return 0 == std::strncmp(name, TrustedAllocatorName, strlen(TrustedAllocatorName));
-    }
-
     class IDGenerator {
         unsigned int id;
 
         public:
             IDGenerator() : id(0) {}
 
-            unsigned long int getID() {
-                return id++;
+            ConstantInt* getConstID(Module &M) {
+                return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), id++);
+            }
+
+            ConstantInt* getDummyID(Module &M) {
+                return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
             }
     };
 
     static IDGenerator IDG;
-
-    class UniqueID {
-        public:
-            unsigned int ID;
-
-            // Provide an int for specific or dummy UniqueIDs. Otherwise Constructor should assign incrementing IDs based on request.
-            UniqueID(unsigned int ID = IDG.getID()) : ID(ID) {}
-        private:
-    };
 
     class DynUntrustedAlloc : public ModulePass {
         public:
@@ -101,14 +74,14 @@ namespace
                 // Pre-inline pass:
                 // Adds function hooks with dummy UniqueIDs immediately after calls
                 // to __rust_alloc* functions. Additionally, we must remove the 
-                // NoInline attribute from RustAlloc functions.
+                // NoInline attribute from RustAlloc functions.		
 
                 // Make function hook to add to all functions we wish to track
                 Constant *allocHookFunc = M.getOrInsertFunction("allocHook", 
                     Type::getVoidTy(M.getContext()), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
+                    IntegerType::getInt64Ty(M.getContext()));
                 allocHook = cast<Function>(allocHookFunc);
 
                 Constant *mallocHookFunc = M.getOrInsertFunction("mallocHook", 
@@ -117,19 +90,19 @@ namespace
                     IntegerType::get(M.getContext(), 32), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
+                    IntegerType::getInt64Ty(M.getContext()));
                 mallocHook = cast<Function>(mallocHookFunc);
 
                 Constant *deallocHookFunc = M.getOrInsertFunction("deallocHook", 
                     Type::getVoidTy(M.getContext()), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}),
-                    NULL);
+                    IntegerType::getInt64Ty(M.getContext()));
                 deallocHook = cast<Function>(deallocHookFunc);
 
                 hookAllocFunctions(M);
                 removeInlineAttr(M);
+                assignUniqueIDs(M);
                 return true;
             }
 
@@ -137,7 +110,7 @@ namespace
             void hookAllocFunctions(Module &M) {
                 std::string allocFuncs[4] = { "__rust_alloc", "__rust_untrusted_alloc",
                                          "__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed" };
-                for (auto allocName : allocFuncs ) {
+                for (auto allocName : allocFuncs) {
                     Function *F = M.getFunction(allocName);
                     if (!F) {
                         // errs() << allocName << " is an invalid pointer: " << F << "\n";
@@ -166,123 +139,124 @@ namespace
                 BasicBlock *BB = CS->getParent();
                 
                 // Create Dummy UniqueID
-                ConstantInt *UUID_dummy = llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
+                // ConstantInt *UUID_dummy = llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
 
                 // Create hook call instruction (hookInst, return_ptr, ptr_size, UUID_placeholder)
                 // TODO : I think this gets overridden to (*Func, Args...)
-                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), UUID_dummy});
+                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
                 
                 // Insert hook call after call site instruction
-                BB->getInstList().insertAfter((Instruction *)CSInst, (Instruction *)newHookInst);
+                BasicBlock::iterator bbIter((Instruction *)CSInst);
+                bbIter++;
+                BB->getInstList().insert(bbIter, (Instruction *)newHookInst);
             }
 
             /// Iterate all Functions of Module M, remove NoInline attribute from Functions with RustAllocator attribute.
             void removeInlineAttr(Module &M) {
                 for (Function &F : M) {
                     if (F.hasFnAttribute(Attribute::RustAllocator)) {
-                        F.removeFnAttribute(Attribute::NoInline);
+                        F.removeFnAttr(Attribute::NoInline);
                     }
                 }
             }
 
             ////// From Below is Post Inline Functionality //////
 
-            void scanPOGraph(Module &M) {
+            void assignUniqueIDs(Module &M) {
                 CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-                ReversePostOrderTraversal<Function *> RPOT(CG);
 
-                for (rpo_iterator BB = RPOT.begin(); BB != RPOT.end(); ++BB) {
-                    for (BasicBlock::reverse_iterator inst = BB->rbgein(), end = BB->rend(); inst != end; ++inst) {
+                std::string hookFuncNames[3] = { "allocHook", "mallocHook",
+                                         "deallocHook" };
 
+                SmallVector<Function *, 3> hookFns;
+                for (auto hookName : hookFuncNames) {
+                    Function *F = M.getFunction(hookName);
+                    if (!F)
+                        continue;
+                    
+                    hookFns.push_back(F);
+                }
+                
+                // SCC Iterator traverses the graph in reverse Topological order.
+                // We want to traverse in Topological order, so we gather all the nodes,
+                // then reverse the vector.
+                std::vector<Function *> WorkList;
+                for (scc_iterator<CallGraph *> scc_iter = scc_begin(&CG); !scc_iter.isAtEnd(); ++scc_iter) {
+                    // Ideally none of our components should be in an SCC, thus each node 
+                    // we are interested in should have no more than 1 item in them.
+                    if (scc_iter->size() != 1) {
+                        continue;
+                    }
+
+                    Function *F = scc_iter->front()->getFunction();
+		    if (!F)
+			continue;
+
+		    if (F->isDeclaration()) {
+			continue;
+		    }
+
+                    WorkList.push_back(F);
+                }
+		
+                for (auto *F : llvm::reverse(WorkList)) {
+                    ReversePostOrderTraversal<Function *> RPOT(F);
+                    
+                    for (BasicBlock *BB : RPOT) {
+                        for (Instruction &I : *BB) {
+                            CallSite CS(&I);
+                            if (!CS) {
+                                continue;
+                            }
+
+                            Function *hook = CS.getCalledFunction();
+			    if (hook == hookFns[0]) {
+				// allocHook
+				CS.setArgument(2, IDG.getConstID(M));
+			    } else if (hook == hookFns[1]) {
+				// mallocHook
+				CS.setArgument(4, IDG.getConstID(M));
+			    } else if (hook == hookFns[2]) {
+				// deallocHook
+				CS.setArgument(2, IDG.getConstID(M));
+			    }
+			}
                     }
                 }
+		
             }
 
-
-            // void loadCallGraph(Module &M) {
-            //     // Lazy Call Graph should contain functions for me to directly get reverse post order traversal from.
-            //     &LCG = getAnalysis<LazyCallGraphAnalysis>().getGraph();
-            //     &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-            // }
-
-            // void mapCSID() {
-            //     ReversePostOrderTraversal<Function *> RPOT(CG);
-            //     for (rpo_iterator I = RPOT.begin(); I != RPOT.end(); ++I) {
-            //         for (auto inst : *I) {
-            //             // TODO : Figure out what I should be doing here. What data type is inst?? or I for that matter.
-            //         }
-            //     }
-            // }
-
-            
-
-            // void scanPostOrderGraph() {
-            //     for (auto GraphNode : post_order(&CG)) {
-            //         Function *F = GraphNode->getFunction();
-            //         if (!VisitedFunctions.insert(F).second) {
-            //             continue;
-            //         }
-                    
-            //         if (F->hasFnAttribute(Attribute::RustAllocator)) {
-            //             // Function has RustAllocator attribute, instrument call stack.
-            //             traverseFunctionCallStack(F);
-            //         }
-            //     }
-            // }
-
-            // void traverseFunctionCallStack(Function *F) {
-            //     std::vector<Function*> WorkingSet {F};
-
-            //     // Loop over functions until last RustAllocator function is found.
-            //     while (!WorkingSet.empty()) {
-            //         // Get Current Function, pop from WorkingSet
-            //         Function *CF = WorkingSet.back();
-            //         VisitedFunctions.insert(CF);
-            //         WorkingSet.pop_back();
-
-            //         auto FuncNode = CG[CF];
-            //         for (auto CR : *FuncNode) {
-            //             auto ParentNode = CR.second;
-            //             if (!ParentNode) {
-            //                 continue;
-            //             }
-
-            //             // Get Parent Function of Current Function, check to see if it has the Rust Allocator Attribute
-            //             Function *PF = ParentNode->getFunction();
-            //             if PF->hasFnAttribute(Attribute::RustAllocator) {
-            //                 // PF has attribute, inline CF into parent and add PF to WorkingSet
-            //                 CallSite CS = CR.first;
-            //                 InlineFunctionInfo IFI(nullptr);
-
-            //                 if (!CS) {
-            //                     errs() << "Expected callsite for valid Parent Node Allocator.\n";
-            //                 }
-
-            //                 if (InlineFunction(CS, IFI).isSuccess()) {
-            //                     errs() << "Successfully inlined: " << CS.getCaller()->getName() << "\n";
-            //                 }
-
-
-            //                 WorkingSet.push_back(PF);
-            //             } else {
-            //                 // Parent Function does not have RustAllocator attribute,
-            //                 // instrument call site 
-            //             }
-            //         }
-            //     }
-            // }
+            void getAnalysisUsage(AnalysisUsage &AU) const override {
+                AU.addRequired<CallGraphWrapperPass>();
+            }
 
         private:
-        // CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-        // LazyCallGraph &LCG = getAnalysis<LazyCallGraphAnalysis>().getGraph();
-        // std::set<Function *> VisitedFunctions;
-        // std::vector<Function *> GraphNodeVisitor;
-        // std::set<Function *> InstrumentFunctions;
-        // DenseMap<CallSite *, UniqueID> CSMap;
         Function *allocHook;
         Function *mallocHook;
         Function *deallocHook;
     };
 
     char DynUntrustedAlloc::ID = 0;
-};
+}
+
+INITIALIZE_PASS_BEGIN(
+    DynUntrustedAlloc, "dyn-untrusted",
+    "DynUntrustedAlloc: Patch allocation sites with dynamic function hooks for tracking allocation IDs.", false, false)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_END(DynUntrustedAlloc, "dyn-untrusted",
+                    "DynUntrustedAlloc: Patch allocation sites with dynamic function hooks for tracking allocation IDs.",
+                    false, false)
+
+
+ModulePass *llvm::createDynUntrustedAllocPass() { return new DynUntrustedAlloc(); }
+
+// run the syringe pass
+PreservedAnalyses DynUntrustedAllocPass::run(Module &M,
+                                          ModuleAnalysisManager &AM) {
+  DynUntrustedAlloc dyn;
+  if (!dyn.runOnModule(M)) {
+      return PreservedAnalyses::all();
+  }
+
+  return PreservedAnalyses::none();
+}

@@ -1234,7 +1234,7 @@ PreservedAnalyses UntrustedAllocPass::run(Module &M,
 ///// library.
 // void initializeUntrustedAllocPass(PassRegistry &Registry) {
 // initializeUntrustedAllocPass(Registry);
-//}
+// }
 
 ///// LLVMInitializeUntrustedAlloc - C binding for initializeUntrustedAlloc.
 // void LLVMInitializeUntrustedAlloc(LLVMPassRegistryRef R) {
