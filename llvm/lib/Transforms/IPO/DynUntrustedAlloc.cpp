@@ -140,14 +140,14 @@ namespace
                 for (auto allocName : allocFuncs) {
                     Function *F = M.getFunction(allocName);
                     if (!F) {
-                        errs() << allocName << " is an invalid pointer: " << F << "\n";
+                        // errs() << allocName << " is an invalid pointer: " << F << "\n";
                         continue;
                     }
 
                     for (auto caller : F->users()) {
                         CallSite CS(caller);
                         if (!CS) {
-                            errs() << CS << " is not a callsite!\n";
+                            // errs() << CS << " is not a callsite!\n";
                             continue;
                         }
 
@@ -189,115 +189,56 @@ namespace
 
             ////// From Below is Post Inline Functionality //////
 
-            void scanPOGraph(Module &M) {
+            void assignUniqueIDs(Module &M) {
                 CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+
+                std::string hookFuncNames[3] = { "allocHook", "mallocHook",
+                                         "deallocHook" };
+
+                SmallVector<Function *F, 3> hookFns;
+                for (auto hookName : hookFuncNames) {
+                    Function *F = M.getFunction(hookName);
+                    if (!F)
+                        continue;
+                    
+                    hookFns.push_back(F);
+                }
                 
                 // SCC Iterator traverses the graph in reverse Topological order.
                 // We want to traverse in Topological order, so we gather all the nodes,
                 // then reverse the vector.
-                vector<Function *> WorkList;
+                std::vector<Function *> WorkList;
                 for (scc_iterator<CallGraph *> scc_iter = scc_begin(&CG); !scc_iter.isAtEnd(); ++scc_iter) {
                     // Ideally none of our components should be in an SCC, thus each node 
                     // we are interested in should have no more than 1 item in them.
-                    if (I->size() != 1) {
+                    if (scc_iter->size() != 1) {
                         continue;
                     }
 
-                    Function *F = I->front()->getFunction();
+                    Function *F = scc_iter->front()->getFunction();
                     WorkList.push_back(F);
                 }
 
                 for (auto *F : llvm::reverse(WorkList)) {
                     ReversePostOrderTraversal<Function *> RPOT(F);
-                    for (rpo_iterator I = RPOT.begin(); I!= RPOT.end(); ++I) {
-                        for (auto BB : I) {
-                            
+                    
+                    for (BasicBlock *BB : RPOT) {
+                        for (Instruction *I : BB) {
+                            CallSite CS(I);
+                            if (!CS) {
+                                continue;
+                            }
+
+                            Function *hook = CS.getCalledFunction();
+                            if (std::find(hookFns.begin(), hookFns.end(), hook) != hookFns.end()) {
+                                // Replace ending const dummy value with Unique ID
+                            }
                         }
                     }
                 }
             }
 
-
-            // void loadCallGraph(Module &M) {
-            //     // Lazy Call Graph should contain functions for me to directly get reverse post order traversal from.
-            //     &LCG = getAnalysis<LazyCallGraphAnalysis>().getGraph();
-            //     &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-            // }
-
-            // void mapCSID() {
-            //     ReversePostOrderTraversal<Function *> RPOT(CG);
-            //     for (rpo_iterator I = RPOT.begin(); I != RPOT.end(); ++I) {
-            //         for (auto inst : *I) {
-            //             // TODO : Figure out what I should be doing here. What data type is inst?? or I for that matter.
-            //         }
-            //     }
-            // }
-
-            
-
-            // void scanPostOrderGraph() {
-            //     for (auto GraphNode : post_order(&CG)) {
-            //         Function *F = GraphNode->getFunction();
-            //         if (!VisitedFunctions.insert(F).second) {
-            //             continue;
-            //         }
-                    
-            //         if (F->hasFnAttribute(Attribute::RustAllocator)) {
-            //             // Function has RustAllocator attribute, instrument call stack.
-            //             traverseFunctionCallStack(F);
-            //         }
-            //     }
-            // }
-
-            // void traverseFunctionCallStack(Function *F) {
-            //     std::vector<Function*> WorkingSet {F};
-
-            //     // Loop over functions until last RustAllocator function is found.
-            //     while (!WorkingSet.empty()) {
-            //         // Get Current Function, pop from WorkingSet
-            //         Function *CF = WorkingSet.back();
-            //         VisitedFunctions.insert(CF);
-            //         WorkingSet.pop_back();
-
-            //         auto FuncNode = CG[CF];
-            //         for (auto CR : *FuncNode) {
-            //             auto ParentNode = CR.second;
-            //             if (!ParentNode) {
-            //                 continue;
-            //             }
-
-            //             // Get Parent Function of Current Function, check to see if it has the Rust Allocator Attribute
-            //             Function *PF = ParentNode->getFunction();
-            //             if PF->hasFnAttribute(Attribute::RustAllocator) {
-            //                 // PF has attribute, inline CF into parent and add PF to WorkingSet
-            //                 CallSite CS = CR.first;
-            //                 InlineFunctionInfo IFI(nullptr);
-
-            //                 if (!CS) {
-            //                     errs() << "Expected callsite for valid Parent Node Allocator.\n";
-            //                 }
-
-            //                 if (InlineFunction(CS, IFI).isSuccess()) {
-            //                     errs() << "Successfully inlined: " << CS.getCaller()->getName() << "\n";
-            //                 }
-
-
-            //                 WorkingSet.push_back(PF);
-            //             } else {
-            //                 // Parent Function does not have RustAllocator attribute,
-            //                 // instrument call site 
-            //             }
-            //         }
-            //     }
-            // }
-
         private:
-        // CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-        // LazyCallGraph &LCG = getAnalysis<LazyCallGraphAnalysis>().getGraph();
-        // std::set<Function *> VisitedFunctions;
-        // std::vector<Function *> GraphNodeVisitor;
-        // std::set<Function *> InstrumentFunctions;
-        // DenseMap<CallSite *, UniqueID> CSMap;
         Function *allocHook;
         Function *mallocHook;
         Function *deallocHook;
