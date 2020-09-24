@@ -24,6 +24,12 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <string>
 #include <set>
@@ -147,20 +153,20 @@ namespace
 
                         // For each valid CallSite of the given allocation function,
                         // we want to add function hooks.
-                        addFunctionHooks(&CS, allocHook);
+                        addFunctionHooks(M, &CS, allocHook);
                     }
                 }
             }
 
             /// Add function hook after call site instruction. Initially place a dummy UUID, to be replaced in structured ascent later.
             /// Additional information required for hook: Size of allocation, and return address.
-            void addFunctionHooks(CallSite *CS, Function* hookInst) {
+            void addFunctionHooks(Module &M, CallSite *CS, Function* hookInst) {
                 // Get CallSite instruction and containing BasicBlock
                 Instruction *CSInst = CS->getInstruction();
                 BasicBlock *BB = CS->getParent();
                 
                 // Create Dummy UniqueID
-                const UniqueID UUID_dummy = UniqueID(0);
+                ConstantInt *UUID_dummy = llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
 
                 // Create hook call instruction (hookInst, return_ptr, ptr_size, UUID_placeholder)
                 // TODO : I think this gets overridden to (*Func, Args...)
