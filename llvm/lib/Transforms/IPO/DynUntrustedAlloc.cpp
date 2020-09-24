@@ -15,6 +15,7 @@
 #include "llvm/Transforms/IPO/DynUntrustedAlloc.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/IR/Attributes.h"
@@ -124,8 +125,7 @@ namespace
                     Type::getVoidTy(M.getContext()), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}),
-                    NULL);
+                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
                 deallocHook = cast<Function>(deallocHookFunc);
 
                 hookAllocFunctions(M);
@@ -137,17 +137,17 @@ namespace
             void hookAllocFunctions(Module &M) {
                 std::string allocFuncs[4] = { "__rust_alloc", "__rust_untrusted_alloc",
                                          "__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed" };
-                for (auto allocName : allocFuncs ) {
+                for (auto allocName : allocFuncs) {
                     Function *F = M.getFunction(allocName);
                     if (!F) {
-                        // errs() << allocName << " is an invalid pointer: " << F << "\n";
+                        errs() << allocName << " is an invalid pointer: " << F << "\n";
                         continue;
                     }
 
                     for (auto caller : F->users()) {
                         CallSite CS(caller);
                         if (!CS) {
-                            // errs() << CS << " is not a callsite!\n";
+                            errs() << CS << " is not a callsite!\n";
                             continue;
                         }
 
@@ -173,14 +173,16 @@ namespace
                 Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), UUID_dummy});
                 
                 // Insert hook call after call site instruction
-                BB->getInstList().insertAfter((Instruction *)CSInst, (Instruction *)newHookInst);
+                BasicBlock::iterator bbIter((Instruction *)CSInst);
+                bbIter++;
+                BB->getInstList().insert(bbIter, (Instruction *)newHookInst);
             }
 
             /// Iterate all Functions of Module M, remove NoInline attribute from Functions with RustAllocator attribute.
             void removeInlineAttr(Module &M) {
                 for (Function &F : M) {
                     if (F.hasFnAttribute(Attribute::RustAllocator)) {
-                        F.removeFnAttribute(Attribute::NoInline);
+                        F.removeFnAttr(Attribute::NoInline);
                     }
                 }
             }
@@ -189,11 +191,28 @@ namespace
 
             void scanPOGraph(Module &M) {
                 CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-                ReversePostOrderTraversal<Function *> RPOT(CG);
+                
+                // SCC Iterator traverses the graph in reverse Topological order.
+                // We want to traverse in Topological order, so we gather all the nodes,
+                // then reverse the vector.
+                vector<Function *> WorkList;
+                for (scc_iterator<CallGraph *> scc_iter = scc_begin(&CG); !scc_iter.isAtEnd(); ++scc_iter) {
+                    // Ideally none of our components should be in an SCC, thus each node 
+                    // we are interested in should have no more than 1 item in them.
+                    if (I->size() != 1) {
+                        continue;
+                    }
 
-                for (rpo_iterator BB = RPOT.begin(); BB != RPOT.end(); ++BB) {
-                    for (BasicBlock::reverse_iterator inst = BB->rbgein(), end = BB->rend(); inst != end; ++inst) {
+                    Function *F = I->front()->getFunction();
+                    WorkList.push_back(F);
+                }
 
+                for (auto *F : llvm::reverse(WorkList)) {
+                    ReversePostOrderTraversal<Function *> RPOT(F);
+                    for (rpo_iterator I = RPOT.begin(); I!= RPOT.end(); ++I) {
+                        for (auto BB : I) {
+                            
+                        }
                     }
                 }
             }
@@ -285,4 +304,4 @@ namespace
     };
 
     char DynUntrustedAlloc::ID = 0;
-};
+}
