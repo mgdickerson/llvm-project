@@ -61,20 +61,19 @@ namespace
 {
     class IDGenerator {
         unsigned int id;
+        Module &M;
 
         public:
-            IDGenerator() : id(0) {}
+            IDGenerator(Module &M) : id(0), M(M) {}
 
-            ConstantInt getConstID() {
+            ConstantInt* getConstID() {
                 return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), id++);
             }
 
-            ConstantInt getDummyID() {
+            ConstantInt* getDummyID() {
                 return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
             }
     };
-
-    static IDGenerator IDG;
 
     class DynUntrustedAlloc : public ModulePass {
         public:
@@ -94,6 +93,8 @@ namespace
                 // Adds function hooks with dummy UniqueIDs immediately after calls
                 // to __rust_alloc* functions. Additionally, we must remove the 
                 // NoInline attribute from RustAlloc functions.
+
+                IDG = IDGenerator(M);
 
                 // Make function hook to add to all functions we wish to track
                 Constant *allocHookFunc = M.getOrInsertFunction("allocHook", 
@@ -245,6 +246,7 @@ namespace
         Function *allocHook;
         Function *mallocHook;
         Function *deallocHook;
+        IDGenerator IDG;
     };
 
     char DynUntrustedAlloc::ID = 0;
