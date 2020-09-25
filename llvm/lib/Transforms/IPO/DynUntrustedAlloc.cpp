@@ -16,6 +16,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/IR/Attributes.h"
@@ -58,32 +59,22 @@ static const char *const TrustedAllocatorName = "__rust_alloc";
 
 namespace
 {
-    bool isRustAlloc(Function *F) {
-        auto name = F->getName().data();
-        return 0 == std::strncmp(name, TrustedAllocatorName, strlen(TrustedAllocatorName));
-    }
-
     class IDGenerator {
         unsigned int id;
 
         public:
             IDGenerator() : id(0) {}
 
-            unsigned long int getID() {
-                return id++;
+            ConstantInt getConstID() {
+                return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), id++);
+            }
+
+            ConstantInt getDummyID() {
+                return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
             }
     };
 
     static IDGenerator IDG;
-
-    class UniqueID {
-        public:
-            unsigned int ID;
-
-            // Provide an int for specific or dummy UniqueIDs. Otherwise Constructor should assign incrementing IDs based on request.
-            UniqueID(unsigned int ID = IDG.getID()) : ID(ID) {}
-        private:
-    };
 
     class DynUntrustedAlloc : public ModulePass {
         public:
@@ -109,7 +100,7 @@ namespace
                     Type::getVoidTy(M.getContext()), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
+                    IntegerType::getInt64Ty(M.getContext()));
                 allocHook = cast<Function>(allocHookFunc);
 
                 Constant *mallocHookFunc = M.getOrInsertFunction("mallocHook", 
@@ -118,18 +109,19 @@ namespace
                     IntegerType::get(M.getContext(), 32), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
+                    IntegerType::getInt64Ty(M.getContext()));
                 mallocHook = cast<Function>(mallocHookFunc);
 
                 Constant *deallocHookFunc = M.getOrInsertFunction("deallocHook", 
                     Type::getVoidTy(M.getContext()), 
                     Type::getInt8PtrTy(M.getContext()), 
                     IntegerType::get(M.getContext(), 32), 
-                    StructType::create(M.getContext(), {IntegerType::get(M.getContext(), 32)}));
+                    IntegerType::getInt64Ty(M.getContext()));
                 deallocHook = cast<Function>(deallocHookFunc);
 
                 hookAllocFunctions(M);
                 removeInlineAttr(M);
+                assignUniqueIDs(M);
                 return true;
             }
 
@@ -166,11 +158,11 @@ namespace
                 BasicBlock *BB = CS->getParent();
                 
                 // Create Dummy UniqueID
-                ConstantInt *UUID_dummy = llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
+                // ConstantInt *UUID_dummy = llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
 
                 // Create hook call instruction (hookInst, return_ptr, ptr_size, UUID_placeholder)
                 // TODO : I think this gets overridden to (*Func, Args...)
-                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), UUID_dummy});
+                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID()});
                 
                 // Insert hook call after call site instruction
                 BasicBlock::iterator bbIter((Instruction *)CSInst);
@@ -195,7 +187,7 @@ namespace
                 std::string hookFuncNames[3] = { "allocHook", "mallocHook",
                                          "deallocHook" };
 
-                SmallVector<Function *F, 3> hookFns;
+                SmallVector<Function *, 3> hookFns;
                 for (auto hookName : hookFuncNames) {
                     Function *F = M.getFunction(hookName);
                     if (!F)
@@ -223,15 +215,26 @@ namespace
                     ReversePostOrderTraversal<Function *> RPOT(F);
                     
                     for (BasicBlock *BB : RPOT) {
-                        for (Instruction *I : BB) {
-                            CallSite CS(I);
+                        for (Instruction &I : *BB) {
+                            CallSite CS(&I);
                             if (!CS) {
                                 continue;
                             }
 
                             Function *hook = CS.getCalledFunction();
-                            if (std::find(hookFns.begin(), hookFns.end(), hook) != hookFns.end()) {
-                                // Replace ending const dummy value with Unique ID
+                            switch (hook) {
+                                // allocHook
+                                case hookFns[0] :
+                                    CS.setArgument(2, IDG.getConstID());
+                                    break;
+                                // mallocHook
+                                case hookFns[1] :
+                                    CS.setArgument(4, IDG.getConstID());
+                                    break;
+                                // deallocHook
+                                case hookFns[2] :
+                                    CS.setArgument(2, IDG.getConstID());
+                                    break;
                             }
                         }
                     }
