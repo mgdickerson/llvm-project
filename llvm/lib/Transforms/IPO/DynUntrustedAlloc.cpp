@@ -61,23 +61,25 @@ namespace
 {
     class IDGenerator {
         unsigned int id;
-        Module &M;
 
         public:
-            IDGenerator(Module &M) : id(0), M(M) {}
+            IDGenerator() : id(0) {}
 
-            ConstantInt* getConstID() {
+            ConstantInt* getConstID(Module &M) {
                 return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), id++);
             }
 
-            ConstantInt* getDummyID() {
+            ConstantInt* getDummyID(Module &M) {
                 return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
             }
     };
 
+    static IDGenerator IDG;
+
     class DynUntrustedAlloc : public ModulePass {
         public:
             static char ID;
+	    static IDGenerator IDG;
 
             DynUntrustedAlloc() : ModulePass(ID) {
                 initializeDynUntrustedAllocPass(*PassRegistry::getPassRegistry());
@@ -92,9 +94,7 @@ namespace
                 // Pre-inline pass:
                 // Adds function hooks with dummy UniqueIDs immediately after calls
                 // to __rust_alloc* functions. Additionally, we must remove the 
-                // NoInline attribute from RustAlloc functions.
-
-                IDG = IDGenerator(M);
+                // NoInline attribute from RustAlloc functions.		
 
                 // Make function hook to add to all functions we wish to track
                 Constant *allocHookFunc = M.getOrInsertFunction("allocHook", 
@@ -163,7 +163,7 @@ namespace
 
                 // Create hook call instruction (hookInst, return_ptr, ptr_size, UUID_placeholder)
                 // TODO : I think this gets overridden to (*Func, Args...)
-                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID()});
+                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
                 
                 // Insert hook call after call site instruction
                 BasicBlock::iterator bbIter((Instruction *)CSInst);
@@ -223,21 +223,17 @@ namespace
                             }
 
                             Function *hook = CS.getCalledFunction();
-                            switch (hook) {
-                                // allocHook
-                                case hookFns[0] :
-                                    CS.setArgument(2, IDG.getConstID());
-                                    break;
-                                // mallocHook
-                                case hookFns[1] :
-                                    CS.setArgument(4, IDG.getConstID());
-                                    break;
-                                // deallocHook
-                                case hookFns[2] :
-                                    CS.setArgument(2, IDG.getConstID());
-                                    break;
-                            }
-                        }
+			    if (hook == hookFns[0]) {
+				// allocHook
+				CS.setArgument(2, IDG.getConstID(M));
+			    } else if (hook == hookFns[1]) {
+				// mallocHook
+				CS.setArgument(4, IDG.getConstID(M));
+			    } else if (hook == hookFns[2]) {
+				// deallocHook
+				CS.setArgument(2, IDG.getConstID(M));
+			    }
+			}
                     }
                 }
             }
@@ -246,7 +242,6 @@ namespace
         Function *allocHook;
         Function *mallocHook;
         Function *deallocHook;
-        IDGenerator IDG;
     };
 
     char DynUntrustedAlloc::ID = 0;
