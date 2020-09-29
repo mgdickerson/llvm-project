@@ -60,7 +60,6 @@ namespace
     class DynUntrustedAlloc : public ModulePass {
         public:
             static char ID;
-	        static IDGenerator IDG;
 
             DynUntrustedAlloc() : ModulePass(ID) {
                 initializeDynUntrustedAllocPass(*PassRegistry::getPassRegistry());
@@ -242,3 +241,13 @@ INITIALIZE_PASS_END(DynUntrustedAlloc, "dyn-untrusted",
 
 
 ModulePass *llvm::createDynUntrustedAllocPass() { return new DynUntrustedAlloc(); }
+
+// run the syringe pass
+PreservedAnalyses DynUntrustedAllocPass::run(Module &M,
+                                          ModuleAnalysisManager &AM) {
+  if (DynUntrustedAlloc::runOnModule(M)) {
+      return PreservedAnalyses::all();
+  }
+
+  return PreservedAnalyses::none();
+}
