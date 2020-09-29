@@ -36,7 +36,8 @@
 #include <set>
 #include <string>
 
-#define DEBUG_TYPE "dyn-untrusted-instr"
+#define DEBUG_TYPE "dyn-untrusted"
+
 using namespace llvm;
 
 namespace {
@@ -169,12 +170,24 @@ public:
   }
 
   ////// From Below is Post Inline Functionality //////
+  int getArgIndexForPatch(Function *hook) {
 
-  void assignUniqueIDs(Module &M) {
-    CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+    auto hookFns = getHookFuncs(*hook->getParent());
+    if (hook == hookFns[0]) {
+      return 2;
+      // allocHook
+    } else if (hook == hookFns[1]) {
+      return 4;
+      // mallocHook
+    } else if (hook == hookFns[2]) {
+      // deallocHook
+      return 2;
+    }
+    return -1;
+  }
 
+  SmallVector<Function *, 3> getHookFuncs(Module &M) {
     std::string hookFuncNames[3] = {"allocHook", "mallocHook", "deallocHook"};
-
     SmallVector<Function *, 3> hookFns;
     for (auto hookName : hookFuncNames) {
       Function *F = M.getFunction(hookName);
@@ -183,6 +196,11 @@ public:
 
       hookFns.push_back(F);
     }
+    return hookFns;
+  }
+
+  void assignUniqueIDs(Module &M) {
+    CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
     // SCC Iterator traverses the graph in reverse Topological order.
     // We want to traverse in Topological order, so we gather all the nodes,
@@ -222,24 +240,14 @@ public:
           }
 
           Function *hook = CS.getCalledFunction();
-          bool modified = true;
-          if (hook == hookFns[0]) {
-            // allocHook
-            CS.setArgument(2, IDG.getConstID(M));
-          } else if (hook == hookFns[1]) {
-            // mallocHook
-            CS.setArgument(4, IDG.getConstID(M));
-          } else if (hook == hookFns[2]) {
-            // deallocHook
-            CS.setArgument(2, IDG.getConstID(M));
-          } else {
-            modified = false;
+          auto index = getArgIndexForPatch(hook);
+          if (index == -1) {
+            LLVM_DEBUG(errs() << "found unhookable function:\n");
+            continue;
           }
-
-          if (modified) {
-            LLVM_DEBUG(errs() << "modified callsite:\n");
-            LLVM_DEBUG(errs() << CS.getInstruction() << "\n");
-          }
+          CS.setArgument(index, IDG.getConstID(M));
+          LLVM_DEBUG(errs() << "modified callsite:\n");
+          LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
         }
       }
     }
