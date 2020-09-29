@@ -38,25 +38,6 @@
 
 using namespace llvm;
 
-static const char *const TrustedAllocatorName = "__rust_alloc";
-
-/*
-    General Plan:
-    1) Get Call Graph, traverse in reverse order (callee -> caller), tracking 
-    visited nodes with visitor pattern.
-    2) Check each function for __rust_alloc attribute, then check callee's parent 
-    function to see if it is a Rust allocator. If it is, proceed to caller, and 
-    repeat until top level function is found. Instrument there.
-    3) Instrument top level function with book keeping calls to compiler-rt. 
-    In essence we want to top level allocation function associated with a given
-    memory allocation. (This could also double as a check for Rust allocations vs
-    generic allocations if we remove book keeping information after function exit.)
-
-    Book Keeping Info:
-    - Allocation function name
-    - (Some other unique identifier here...)
-*/
-
 namespace
 {
     class IDGenerator {
@@ -79,7 +60,7 @@ namespace
     class DynUntrustedAlloc : public ModulePass {
         public:
             static char ID;
-	    static IDGenerator IDG;
+	        static IDGenerator IDG;
 
             DynUntrustedAlloc() : ModulePass(ID) {
                 initializeDynUntrustedAllocPass(*PassRegistry::getPassRegistry());
@@ -238,6 +219,10 @@ namespace
                 }
             }
 
+            void getAnalysisUsage(AnalysisUsage &AU) const override {
+                AU.addRequired<CallGraphWrapperPass>();
+            }
+
         private:
         Function *allocHook;
         Function *mallocHook;
@@ -246,3 +231,14 @@ namespace
 
     char DynUntrustedAlloc::ID = 0;
 }
+
+INITIALIZE_PASS_BEGIN(
+    DynUntrustedAlloc, "dyn-untrusted",
+    "DynUntrustedAlloc: Patch allocation sites with dynamic function hooks for tracking allocation IDs.", false, false)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_END(DynUntrustedAlloc, "dyn-untrusted",
+                    "DynUntrustedAlloc: Patch allocation sites with dynamic function hooks for tracking allocation IDs.",
+                    false, false)
+
+
+ModulePass *llvm::createDynUntrustedAllocPass() { return new DynUntrustedAlloc(); }

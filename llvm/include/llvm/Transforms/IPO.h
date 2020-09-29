@@ -264,6 +264,9 @@ ModulePass *createGlobalSplitPass();
 // Patches Untrusted Allocation sites
 ModulePass *createUntrustedAllocPass();
 
+// Patches Dynamic Function Calls to Allocation sites for analysis
+ModulePass *createDynUntrustedAllocPass();
+
 //===----------------------------------------------------------------------===//
 // SampleProfilePass - Loads sample profile data from disk and generates
 // IR metadata to reflect the profile.
