@@ -189,9 +189,16 @@ namespace
                     }
 
                     Function *F = scc_iter->front()->getFunction();
+		    if (!F)
+			continue;
+
+		    if (F->isDeclaration()) {
+			continue;
+		    }
+
                     WorkList.push_back(F);
                 }
-
+		
                 for (auto *F : llvm::reverse(WorkList)) {
                     ReversePostOrderTraversal<Function *> RPOT(F);
                     
@@ -216,6 +223,7 @@ namespace
 			}
                     }
                 }
+		
             }
 
             void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -245,7 +253,8 @@ ModulePass *llvm::createDynUntrustedAllocPass() { return new DynUntrustedAlloc()
 // run the syringe pass
 PreservedAnalyses DynUntrustedAllocPass::run(Module &M,
                                           ModuleAnalysisManager &AM) {
-  if (DynUntrustedAlloc::runOnModule(M)) {
+  DynUntrustedAlloc dyn;
+  if (!dyn.runOnModule(M)) {
       return PreservedAnalyses::all();
   }
 
