@@ -25,237 +25,259 @@
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <string>
 #include <set>
+#include <string>
 
+#define DEBUG_TYPE "dyn-untrusted-instr"
 using namespace llvm;
 
-namespace
-{
-    class IDGenerator {
-        unsigned int id;
+namespace {
+class IDGenerator {
+  unsigned int id;
 
-        public:
-            IDGenerator() : id(0) {}
+public:
+  IDGenerator() : id(0) {}
 
-            ConstantInt* getConstID(Module &M) {
-                return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), id++);
-            }
+  ConstantInt *getConstID(Module &M) {
+    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()),
+                                  id++);
+  }
 
-            ConstantInt* getDummyID(Module &M) {
-                return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
-            }
-    };
+  ConstantInt *getDummyID(Module &M) {
+    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
+  }
+};
 
-    static IDGenerator IDG;
+static IDGenerator IDG;
 
-    class DynUntrustedAlloc : public ModulePass {
-        public:
-            static char ID;
+class DynUntrustedAlloc : public ModulePass {
+public:
+  static char ID;
 
-            DynUntrustedAlloc() : ModulePass(ID) {
-                initializeDynUntrustedAllocPass(*PassRegistry::getPassRegistry());
-            }
-            virtual ~DynUntrustedAlloc() = default;
+  DynUntrustedAlloc() : ModulePass(ID) {
+    initializeDynUntrustedAllocPass(*PassRegistry::getPassRegistry());
+  }
+  virtual ~DynUntrustedAlloc() = default;
 
-            // StringRef getPassName() const override {
-            //     StringRef(const char * "DynUntrustedAllocPass")
-            // }
+  // StringRef getPassName() const override {
+  //     StringRef(const char * "DynUntrustedAllocPass")
+  // }
 
-            bool runOnModule(Module &M) override {
-                // Pre-inline pass:
-                // Adds function hooks with dummy UniqueIDs immediately after calls
-                // to __rust_alloc* functions. Additionally, we must remove the 
-                // NoInline attribute from RustAlloc functions.		
+  bool runOnModule(Module &M) override {
+    // Pre-inline pass:
+    // Adds function hooks with dummy UniqueIDs immediately after calls
+    // to __rust_alloc* functions. Additionally, we must remove the
+    // NoInline attribute from RustAlloc functions.
 
-                // Make function hook to add to all functions we wish to track
-                Constant *allocHookFunc = M.getOrInsertFunction("allocHook", 
-                    Type::getVoidTy(M.getContext()), 
-                    Type::getInt8PtrTy(M.getContext()), 
-                    IntegerType::get(M.getContext(), 32), 
-                    IntegerType::getInt64Ty(M.getContext()));
-                allocHook = cast<Function>(allocHookFunc);
+    // Make function hook to add to all functions we wish to track
+    Constant *allocHookFunc =
+        M.getOrInsertFunction("allocHook", Type::getVoidTy(M.getContext()),
+                              Type::getInt8PtrTy(M.getContext()),
+                              IntegerType::get(M.getContext(), 32),
+                              IntegerType::getInt64Ty(M.getContext()));
+    allocHook = cast<Function>(allocHookFunc);
 
-                Constant *mallocHookFunc = M.getOrInsertFunction("mallocHook", 
-                    Type::getVoidTy(M.getContext()), 
-                    Type::getInt8PtrTy(M.getContext()), 
-                    IntegerType::get(M.getContext(), 32), 
-                    Type::getInt8PtrTy(M.getContext()), 
-                    IntegerType::get(M.getContext(), 32), 
-                    IntegerType::getInt64Ty(M.getContext()));
-                mallocHook = cast<Function>(mallocHookFunc);
+    Constant *mallocHookFunc =
+        M.getOrInsertFunction("mallocHook", Type::getVoidTy(M.getContext()),
+                              Type::getInt8PtrTy(M.getContext()),
+                              IntegerType::get(M.getContext(), 32),
+                              Type::getInt8PtrTy(M.getContext()),
+                              IntegerType::get(M.getContext(), 32),
+                              IntegerType::getInt64Ty(M.getContext()));
+    mallocHook = cast<Function>(mallocHookFunc);
 
-                Constant *deallocHookFunc = M.getOrInsertFunction("deallocHook", 
-                    Type::getVoidTy(M.getContext()), 
-                    Type::getInt8PtrTy(M.getContext()), 
-                    IntegerType::get(M.getContext(), 32), 
-                    IntegerType::getInt64Ty(M.getContext()));
-                deallocHook = cast<Function>(deallocHookFunc);
+    Constant *deallocHookFunc =
+        M.getOrInsertFunction("deallocHook", Type::getVoidTy(M.getContext()),
+                              Type::getInt8PtrTy(M.getContext()),
+                              IntegerType::get(M.getContext(), 32),
+                              IntegerType::getInt64Ty(M.getContext()));
+    deallocHook = cast<Function>(deallocHookFunc);
 
-                hookAllocFunctions(M);
-                removeInlineAttr(M);
-                assignUniqueIDs(M);
-                return true;
-            }
+    hookAllocFunctions(M);
+    removeInlineAttr(M);
+    assignUniqueIDs(M);
+    return true;
+  }
 
-            /// Iterate over all functions we are looking for, and instrument them with hooks accordingly
-            void hookAllocFunctions(Module &M) {
-                std::string allocFuncs[4] = { "__rust_alloc", "__rust_untrusted_alloc",
-                                         "__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed" };
-                for (auto allocName : allocFuncs) {
-                    Function *F = M.getFunction(allocName);
-                    if (!F) {
-                        // errs() << allocName << " is an invalid pointer: " << F << "\n";
-                        continue;
-                    }
+  /// Iterate over all functions we are looking for, and instrument them with
+  /// hooks accordingly
+  void hookAllocFunctions(Module &M) {
+    std::string allocFuncs[4] = {"__rust_alloc", "__rust_untrusted_alloc",
+                                 "__rust_alloc_zeroed",
+                                 "__rust_untrusted_alloc_zeroed"};
+    for (auto allocName : allocFuncs) {
+      Function *F = M.getFunction(allocName);
+      if (!F) {
+        // errs() << allocName << " is an invalid pointer: " << F << "\n";
+        continue;
+      }
 
-                    for (auto caller : F->users()) {
-                        CallSite CS(caller);
-                        if (!CS) {
-                            // errs() << CS << " is not a callsite!\n";
-                            continue;
-                        }
+      for (auto caller : F->users()) {
+        CallSite CS(caller);
+        if (!CS) {
+          // errs() << CS << " is not a callsite!\n";
+          continue;
+        }
 
-                        // For each valid CallSite of the given allocation function,
-                        // we want to add function hooks.
-                        addFunctionHooks(M, &CS, allocHook);
-                    }
-                }
-            }
+        // For each valid CallSite of the given allocation function,
+        // we want to add function hooks.
+        addFunctionHooks(M, &CS, allocHook);
+      }
+    }
+  }
 
-            /// Add function hook after call site instruction. Initially place a dummy UUID, to be replaced in structured ascent later.
-            /// Additional information required for hook: Size of allocation, and return address.
-            void addFunctionHooks(Module &M, CallSite *CS, Function* hookInst) {
-                // Get CallSite instruction and containing BasicBlock
-                Instruction *CSInst = CS->getInstruction();
-                BasicBlock *BB = CS->getParent();
-                
-                // Create Dummy UniqueID
-                // ConstantInt *UUID_dummy = llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
+  /// Add function hook after call site instruction. Initially place a dummy
+  /// UUID, to be replaced in structured ascent later. Additional information
+  /// required for hook: Size of allocation, and return address.
+  void addFunctionHooks(Module &M, CallSite *CS, Function *hookInst) {
+    // Get CallSite instruction and containing BasicBlock
+    Instruction *CSInst = CS->getInstruction();
+    BasicBlock *BB = CS->getParent();
 
-                // Create hook call instruction (hookInst, return_ptr, ptr_size, UUID_placeholder)
-                // TODO : I think this gets overridden to (*Func, Args...)
-                Instruction *newHookInst = CallInst::Create((Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
-                
-                // Insert hook call after call site instruction
-                BasicBlock::iterator bbIter((Instruction *)CSInst);
-                bbIter++;
-                BB->getInstList().insert(bbIter, (Instruction *)newHookInst);
-            }
+    // Create Dummy UniqueID
+    // ConstantInt *UUID_dummy =
+    // llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
 
-            /// Iterate all Functions of Module M, remove NoInline attribute from Functions with RustAllocator attribute.
-            void removeInlineAttr(Module &M) {
-                for (Function &F : M) {
-                    if (F.hasFnAttribute(Attribute::RustAllocator)) {
-                        F.removeFnAttr(Attribute::NoInline);
-                    }
-                }
-            }
+    // Create hook call instruction (hookInst, return_ptr, ptr_size,
+    // UUID_placeholder)
+    // TODO : I think this gets overridden to (*Func, Args...)
+    Instruction *newHookInst = CallInst::Create(
+        (Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
 
-            ////// From Below is Post Inline Functionality //////
+    // Insert hook call after call site instruction
+    BasicBlock::iterator bbIter((Instruction *)CSInst);
+    bbIter++;
+    BB->getInstList().insert(bbIter, (Instruction *)newHookInst);
+  }
 
-            void assignUniqueIDs(Module &M) {
-                CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  /// Iterate all Functions of Module M, remove NoInline attribute from
+  /// Functions with RustAllocator attribute.
+  void removeInlineAttr(Module &M) {
+    for (Function &F : M) {
+      if (F.hasFnAttribute(Attribute::RustAllocator)) {
+        F.removeFnAttr(Attribute::NoInline);
+      }
+    }
+  }
 
-                std::string hookFuncNames[3] = { "allocHook", "mallocHook",
-                                         "deallocHook" };
+  ////// From Below is Post Inline Functionality //////
 
-                SmallVector<Function *, 3> hookFns;
-                for (auto hookName : hookFuncNames) {
-                    Function *F = M.getFunction(hookName);
-                    if (!F)
-                        continue;
-                    
-                    hookFns.push_back(F);
-                }
-                
-                // SCC Iterator traverses the graph in reverse Topological order.
-                // We want to traverse in Topological order, so we gather all the nodes,
-                // then reverse the vector.
-                std::vector<Function *> WorkList;
-                for (scc_iterator<CallGraph *> scc_iter = scc_begin(&CG); !scc_iter.isAtEnd(); ++scc_iter) {
-                    // Ideally none of our components should be in an SCC, thus each node 
-                    // we are interested in should have no more than 1 item in them.
-                    if (scc_iter->size() != 1) {
-                        continue;
-                    }
+  void assignUniqueIDs(Module &M) {
+    CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-                    Function *F = scc_iter->front()->getFunction();
-		    if (!F)
-			continue;
+    std::string hookFuncNames[3] = {"allocHook", "mallocHook", "deallocHook"};
 
-		    if (F->isDeclaration()) {
-			continue;
-		    }
+    SmallVector<Function *, 3> hookFns;
+    for (auto hookName : hookFuncNames) {
+      Function *F = M.getFunction(hookName);
+      if (!F)
+        continue;
 
-                    WorkList.push_back(F);
-                }
-		
-                for (auto *F : llvm::reverse(WorkList)) {
-                    ReversePostOrderTraversal<Function *> RPOT(F);
-                    
-                    for (BasicBlock *BB : RPOT) {
-                        for (Instruction &I : *BB) {
-                            CallSite CS(&I);
-                            if (!CS) {
-                                continue;
-                            }
+      hookFns.push_back(F);
+    }
 
-                            Function *hook = CS.getCalledFunction();
-			    if (hook == hookFns[0]) {
-				// allocHook
-				CS.setArgument(2, IDG.getConstID(M));
-			    } else if (hook == hookFns[1]) {
-				// mallocHook
-				CS.setArgument(4, IDG.getConstID(M));
-			    } else if (hook == hookFns[2]) {
-				// deallocHook
-				CS.setArgument(2, IDG.getConstID(M));
-			    }
-			}
-                    }
-                }
-		
-            }
+    // SCC Iterator traverses the graph in reverse Topological order.
+    // We want to traverse in Topological order, so we gather all the nodes,
+    // then reverse the vector.
+    std::vector<Function *> WorkList;
+    for (scc_iterator<CallGraph *> scc_iter = scc_begin(&CG);
+         !scc_iter.isAtEnd(); ++scc_iter) {
+      // Ideally none of our components should be in an SCC, thus each node
+      // we are interested in should have no more than 1 item in them.
+      /*
+      if (scc_iter->size() != 1) {
+        continue;
+      }
+      */
 
-            void getAnalysisUsage(AnalysisUsage &AU) const override {
-                AU.addRequired<CallGraphWrapperPass>();
-            }
+      Function *F = scc_iter->front()->getFunction();
+      if (!F)
+        continue;
 
-        private:
-        Function *allocHook;
-        Function *mallocHook;
-        Function *deallocHook;
-    };
+      if (F->isDeclaration()) {
+        continue;
+      }
 
-    char DynUntrustedAlloc::ID = 0;
-}
+      WorkList.push_back(F);
+    }
 
-INITIALIZE_PASS_BEGIN(
-    DynUntrustedAlloc, "dyn-untrusted",
-    "DynUntrustedAlloc: Patch allocation sites with dynamic function hooks for tracking allocation IDs.", false, false)
+    LLVM_DEBUG(errs() << "Search for modified functions!\n");
+
+    for (auto *F : llvm::reverse(WorkList)) {
+      ReversePostOrderTraversal<Function *> RPOT(F);
+
+      for (BasicBlock *BB : RPOT) {
+        for (Instruction &I : *BB) {
+          CallSite CS(&I);
+          if (!CS) {
+            continue;
+          }
+
+          Function *hook = CS.getCalledFunction();
+          bool modified = true;
+          if (hook == hookFns[0]) {
+            // allocHook
+            CS.setArgument(2, IDG.getConstID(M));
+          } else if (hook == hookFns[1]) {
+            // mallocHook
+            CS.setArgument(4, IDG.getConstID(M));
+          } else if (hook == hookFns[2]) {
+            // deallocHook
+            CS.setArgument(2, IDG.getConstID(M));
+          } else {
+            modified = false;
+          }
+
+          if (modified) {
+            LLVM_DEBUG(errs() << "modified callsite:\n");
+            LLVM_DEBUG(errs() << CS.getInstruction() << "\n");
+          }
+        }
+      }
+    }
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<CallGraphWrapperPass>();
+  }
+
+private:
+  Function *allocHook;
+  Function *mallocHook;
+  Function *deallocHook;
+};
+
+char DynUntrustedAlloc::ID = 0;
+} // namespace
+
+INITIALIZE_PASS_BEGIN(DynUntrustedAlloc, "dyn-untrusted",
+                      "DynUntrustedAlloc: Patch allocation sites with dynamic "
+                      "function hooks for tracking allocation IDs.",
+                      false, false)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_END(DynUntrustedAlloc, "dyn-untrusted",
-                    "DynUntrustedAlloc: Patch allocation sites with dynamic function hooks for tracking allocation IDs.",
+                    "DynUntrustedAlloc: Patch allocation sites with dynamic "
+                    "function hooks for tracking allocation IDs.",
                     false, false)
 
-
-ModulePass *llvm::createDynUntrustedAllocPass() { return new DynUntrustedAlloc(); }
+ModulePass *llvm::createDynUntrustedAllocPass() {
+  return new DynUntrustedAlloc();
+}
 
 // run the syringe pass
 PreservedAnalyses DynUntrustedAllocPass::run(Module &M,
-                                          ModuleAnalysisManager &AM) {
+                                             ModuleAnalysisManager &AM) {
   DynUntrustedAlloc dyn;
   if (!dyn.runOnModule(M)) {
-      return PreservedAnalyses::all();
+    return PreservedAnalyses::all();
   }
 
   return PreservedAnalyses::none();
