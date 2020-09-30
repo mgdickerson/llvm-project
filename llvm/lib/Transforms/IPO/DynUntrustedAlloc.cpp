@@ -52,7 +52,7 @@ public:
   }
 
   ConstantInt *getDummyID(Module &M) {
-    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
+    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
   }
 };
 
@@ -192,9 +192,11 @@ public:
          !scc_iter.isAtEnd(); ++scc_iter) {
       // Ideally none of our components should be in an SCC, thus each node
       // we are interested in should have no more than 1 item in them.
+      /*
       if (scc_iter->size() != 1) {
         continue;
       }
+      */
 
       Function *F = scc_iter->front()->getFunction();
       if (!F)
@@ -206,6 +208,8 @@ public:
 
       WorkList.push_back(F);
     }
+
+    LLVM_DEBUG(errs() << "Search for modified functions!\n");
 
     for (auto *F : llvm::reverse(WorkList)) {
       ReversePostOrderTraversal<Function *> RPOT(F);
@@ -234,7 +238,7 @@ public:
 
           if (modified) {
             LLVM_DEBUG(errs() << "modified callsite:\n");
-            LLVM_DEBUG(errs() << CS << "\n");
+            LLVM_DEBUG(errs() << CS.getInstruction() << "\n");
           }
         }
       }
