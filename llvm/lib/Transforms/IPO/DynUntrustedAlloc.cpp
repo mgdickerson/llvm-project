@@ -171,7 +171,7 @@ public:
 
   ////// From Below is Post Inline Functionality //////
   int getArgIndexForPatch(Function *hook) {
-
+    assert(hook && "Nullptr: Invalid function to hook");
     auto hookFns = getHookFuncs(*hook->getParent());
     if (hook == hookFns[0]) {
       return 2;
@@ -240,9 +240,11 @@ public:
           }
 
           Function *hook = CS.getCalledFunction();
+          if (!hook)
+            continue;
+
           auto index = getArgIndexForPatch(hook);
           if (index == -1) {
-            LLVM_DEBUG(errs() << "found unhookable function:\n");
             continue;
           }
           CS.setArgument(index, IDG.getConstID(M));
