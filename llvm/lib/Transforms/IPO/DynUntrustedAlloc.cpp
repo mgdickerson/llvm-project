@@ -118,16 +118,9 @@ public:
   }
 
   void hookFunction(Module &M, std::string Name, Function *Hook) {
-    for (auto CS : grabCallSites(M, Name)) {
-      addFunctionHooks(M, CS, Hook);
-    }
-  }
-
-  std::vector<CallSite &> grabCallSites(Module &M, std::string funcName) {
-    std::vector<CallSite &> cs;
-    Function *F = M.getFunction(funcName);
+    Function *F = M.getFunction(Name);
     if(!F)
-      return cs;
+      return;
 
     for (auto caller : F->users()) {
       CallSite CS(caller);
@@ -135,10 +128,8 @@ public:
         continue;
       }
 
-      cs.push_back(&CS);
+      addFunctionHooks(M, &CS, Hook);
     }
-
-    return cs;
   }
 
   /// Add function hook after call site instruction. Initially place a dummy
@@ -186,7 +177,7 @@ public:
   }
 
   SmallVector<Function *, 3> getHookFuncs(Module &M) {
-    std::string hookFuncNames[3] = {"allocHook", "mallocHook", "deallocHook"};
+    std::string hookFuncNames[3] = {"allocHook", "reallocHook", "deallocHook"};
     SmallVector<Function *, 3> hookFns;
     for (auto hookName : hookFuncNames) {
       Function *F = M.getFunction(hookName);
@@ -198,13 +189,14 @@ public:
     return hookFns;
   }
 
-  bool funcSort(Function *F1, Function *F2) { F1->getName().data() > F2->getName().data()}
+  static bool funcSort(Function *F1, Function *F2) { return F1->getName().data() > F2->getName().data(); }
 
   void assignUniqueIDs(Module &M) {
-    CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+    // CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
     std::vector<Function *> WorkList;
-    for (Function *F : M) {
+    for (Function &FRef : M) {
+      Function *F = &FRef;
       if (!F)
         continue;
 
