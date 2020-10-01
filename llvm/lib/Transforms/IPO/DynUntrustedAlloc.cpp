@@ -86,14 +86,14 @@ public:
                               IntegerType::getInt64Ty(M.getContext()));
     allocHook = cast<Function>(allocHookFunc);
 
-    Constant *mallocHookFunc =
-        M.getOrInsertFunction("mallocHook", Type::getVoidTy(M.getContext()),
+    Constant *reallocHookFunc =
+        M.getOrInsertFunction("reallocHook", Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext()),
                               IntegerType::get(M.getContext(), 32),
                               Type::getInt8PtrTy(M.getContext()),
                               IntegerType::get(M.getContext(), 32),
                               IntegerType::getInt64Ty(M.getContext()));
-    mallocHook = cast<Function>(mallocHookFunc);
+    reallocHook = cast<Function>(reallocHookFunc);
 
     Constant *deallocHookFunc =
         M.getOrInsertFunction("deallocHook", Type::getVoidTy(M.getContext()),
@@ -111,27 +111,24 @@ public:
   /// Iterate over all functions we are looking for, and instrument them with
   /// hooks accordingly
   void hookAllocFunctions(Module &M) {
-    std::string allocFuncs[4] = {"__rust_alloc", "__rust_untrusted_alloc",
-                                 "__rust_alloc_zeroed",
-                                 "__rust_untrusted_alloc_zeroed"};
-    for (auto allocName : allocFuncs) {
-      Function *F = M.getFunction(allocName);
-      if (!F) {
-        // errs() << allocName << " is an invalid pointer: " << F << "\n";
+    hookFunction(M, "__rust_alloc", allocHook);
+    hookFunction(M, "__rust_alloc_zeroed", allocHook);
+    hookFunction(M, "__rust_realloc", reallocHook);
+    hookFunction(M, "__rust_dealloc", deallocHook);
+  }
+
+  void hookFunction(Module &M, std::string Name, Function *Hook) {
+    Function *F = M.getFunction(Name);
+    if(!F)
+      return;
+
+    for (auto caller : F->users()) {
+      CallSite CS(caller);
+      if (!CS) {
         continue;
       }
 
-      for (auto caller : F->users()) {
-        CallSite CS(caller);
-        if (!CS) {
-          // errs() << CS << " is not a callsite!\n";
-          continue;
-        }
-
-        // For each valid CallSite of the given allocation function,
-        // we want to add function hooks.
-        addFunctionHooks(M, &CS, allocHook);
-      }
+      addFunctionHooks(M, &CS, Hook);
     }
   }
 
@@ -143,13 +140,6 @@ public:
     Instruction *CSInst = CS->getInstruction();
     BasicBlock *BB = CS->getParent();
 
-    // Create Dummy UniqueID
-    // ConstantInt *UUID_dummy =
-    // llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), 0);
-
-    // Create hook call instruction (hookInst, return_ptr, ptr_size,
-    // UUID_placeholder)
-    // TODO : I think this gets overridden to (*Func, Args...)
     Instruction *newHookInst = CallInst::Create(
         (Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
 
@@ -187,7 +177,7 @@ public:
   }
 
   SmallVector<Function *, 3> getHookFuncs(Module &M) {
-    std::string hookFuncNames[3] = {"allocHook", "mallocHook", "deallocHook"};
+    std::string hookFuncNames[3] = {"allocHook", "reallocHook", "deallocHook"};
     SmallVector<Function *, 3> hookFns;
     for (auto hookName : hookFuncNames) {
       Function *F = M.getFunction(hookName);
@@ -199,33 +189,24 @@ public:
     return hookFns;
   }
 
+  static bool funcSort(Function *F1, Function *F2) { return F1->getName().data() > F2->getName().data(); }
+
   void assignUniqueIDs(Module &M) {
-    CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+    // CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-    // SCC Iterator traverses the graph in reverse Topological order.
-    // We want to traverse in Topological order, so we gather all the nodes,
-    // then reverse the vector.
     std::vector<Function *> WorkList;
-    for (scc_iterator<CallGraph *> scc_iter = scc_begin(&CG);
-         !scc_iter.isAtEnd(); ++scc_iter) {
-      // Ideally none of our components should be in an SCC, thus each node
-      // we are interested in should have no more than 1 item in them.
-      /*
-      if (scc_iter->size() != 1) {
-        continue;
-      }
-      */
-
-      Function *F = scc_iter->front()->getFunction();
+    for (Function &FRef : M) {
+      Function *F = &FRef;
       if (!F)
         continue;
 
-      if (F->isDeclaration()) {
+      if (F->isDeclaration())
         continue;
-      }
 
       WorkList.push_back(F);
     }
+
+    std::sort(WorkList.begin(), WorkList.end(), funcSort);
 
     LLVM_DEBUG(errs() << "Search for modified functions!\n");
 
@@ -261,7 +242,7 @@ public:
 
 private:
   Function *allocHook;
-  Function *mallocHook;
+  Function *reallocHook;
   Function *deallocHook;
 };
 
