@@ -140,9 +140,21 @@ public:
     Instruction *CSInst = CS->getInstruction();
     BasicBlock *BB = CS->getParent();
 
-    Instruction *newHookInst = CallInst::Create(
+    Instruction *newHookInst;
+    if (hookInst == allocHook) {
+      newHookInst = CallInst::Create(
         (Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
-
+    } else if (hookInst == reallocHook) {
+      newHookInst = CallInst::Create(
+        (Function *)hookInst, {CSInst, CS->getArgument(3), CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)}
+      );
+    } else if (hookInst == deallocHook) {
+      newHookInst = CallInst::Create(
+        (Function *)hookInst, {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)}
+      );
+    } else {
+      LLVM_DEBUG(errs() << "Attempted to add hook to non-hook function!\n");
+    }
     // Insert hook call after call site instruction
     BasicBlock::iterator bbIter((Instruction *)CSInst);
     bbIter++;
