@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/IPO/DynUntrustedAlloc.h"
+#include "llvm/Transforms/IPO/DynUntrustedAllocPre.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -59,18 +59,14 @@ public:
 
 static IDGenerator IDG;
 
-class DynUntrustedAlloc : public ModulePass {
+class DynUntrustedAllocPre : public ModulePass {
 public:
   static char ID;
 
-  DynUntrustedAlloc() : ModulePass(ID) {
-    initializeDynUntrustedAllocPass(*PassRegistry::getPassRegistry());
+  DynUntrustedAllocPre() : ModulePass(ID) {
+    initializeDynUntrustedAllocPrePass(*PassRegistry::getPassRegistry());
   }
-  virtual ~DynUntrustedAlloc() = default;
-
-  // StringRef getPassName() const override {
-  //     StringRef(const char * "DynUntrustedAllocPass")
-  // }
+  virtual ~DynUntrustedAllocPre() = default;
 
   bool runOnModule(Module &M) override {
     // Pre-inline pass:
@@ -78,33 +74,40 @@ public:
     // to __rust_alloc* functions. Additionally, we must remove the
     // NoInline attribute from RustAlloc functions.
 
+    AttrBuilder attrBldr;
+    attrBldr.addAttribute(Attribute::NoUnwind);
+    attrBldr.addAttribute(Attribute::ArgMemOnly);
+
+    AttributeList fnAttrs = AttributeList::get(M.getContext(), AttributeList::FunctionIndex, attrBldr);
+
     // Make function hook to add to all functions we wish to track
     Constant *allocHookFunc =
-        M.getOrInsertFunction("allocHook", Type::getVoidTy(M.getContext()),
+        M.getOrInsertFunction("allocHook", fnAttrs, Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 32),
+                              IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
     allocHook = cast<Function>(allocHookFunc);
 
     Constant *reallocHookFunc =
-        M.getOrInsertFunction("reallocHook", Type::getVoidTy(M.getContext()),
+        M.getOrInsertFunction("reallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 32),
+                              IntegerType::get(M.getContext(), 64),
                               Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 32),
+                              IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
     reallocHook = cast<Function>(reallocHookFunc);
 
     Constant *deallocHookFunc =
-        M.getOrInsertFunction("deallocHook", Type::getVoidTy(M.getContext()),
+        M.getOrInsertFunction("deallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 32),
+                              IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
     deallocHook = cast<Function>(deallocHookFunc);
 
     hookAllocFunctions(M);
+
+    // Remove inline attribute from functions for inlining.
     removeInlineAttr(M);
-    assignUniqueIDs(M);
     return true;
   }
 
@@ -171,83 +174,6 @@ public:
     }
   }
 
-  ////// From Below is Post Inline Functionality //////
-  int getArgIndexForPatch(Function *hook) {
-    assert(hook && "Nullptr: Invalid function to hook");
-    auto hookFns = getHookFuncs(*hook->getParent());
-    if (hook == hookFns[0]) {
-      return 2;
-      // allocHook
-    } else if (hook == hookFns[1]) {
-      return 4;
-      // mallocHook
-    } else if (hook == hookFns[2]) {
-      // deallocHook
-      return 2;
-    }
-    return -1;
-  }
-
-  SmallVector<Function *, 3> getHookFuncs(Module &M) {
-    std::string hookFuncNames[3] = {"allocHook", "reallocHook", "deallocHook"};
-    SmallVector<Function *, 3> hookFns;
-    for (auto hookName : hookFuncNames) {
-      Function *F = M.getFunction(hookName);
-      if (!F)
-        continue;
-
-      hookFns.push_back(F);
-    }
-    return hookFns;
-  }
-
-  static bool funcSort(Function *F1, Function *F2) { return F1->getName().data() > F2->getName().data(); }
-
-  void assignUniqueIDs(Module &M) {
-    // CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-
-    std::vector<Function *> WorkList;
-    for (Function &FRef : M) {
-      Function *F = &FRef;
-      if (!F)
-        continue;
-
-      if (F->isDeclaration())
-        continue;
-
-      WorkList.push_back(F);
-    }
-
-    std::sort(WorkList.begin(), WorkList.end(), funcSort);
-
-    LLVM_DEBUG(errs() << "Search for modified functions!\n");
-
-    for (auto *F : llvm::reverse(WorkList)) {
-      ReversePostOrderTraversal<Function *> RPOT(F);
-
-      for (BasicBlock *BB : RPOT) {
-        for (Instruction &I : *BB) {
-          CallSite CS(&I);
-          if (!CS) {
-            continue;
-          }
-
-          Function *hook = CS.getCalledFunction();
-          if (!hook)
-            continue;
-
-          auto index = getArgIndexForPatch(hook);
-          if (index == -1) {
-            continue;
-          }
-          CS.setArgument(index, IDG.getConstID(M));
-          LLVM_DEBUG(errs() << "modified callsite:\n");
-          LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
-        }
-      }
-    }
-  }
-
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<CallGraphWrapperPass>();
   }
@@ -258,27 +184,26 @@ private:
   Function *deallocHook;
 };
 
-char DynUntrustedAlloc::ID = 0;
+char DynUntrustedAllocPre::ID = 0;
 } // namespace
 
-INITIALIZE_PASS_BEGIN(DynUntrustedAlloc, "dyn-untrusted",
+INITIALIZE_PASS_BEGIN(DynUntrustedAllocPre, "dyn-untrusted-pre",
                       "DynUntrustedAlloc: Patch allocation sites with dynamic "
                       "function hooks for tracking allocation IDs.",
                       false, false)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
-INITIALIZE_PASS_END(DynUntrustedAlloc, "dyn-untrusted",
+INITIALIZE_PASS_END(DynUntrustedAllocPre, "dyn-untrusted-pre",
                     "DynUntrustedAlloc: Patch allocation sites with dynamic "
                     "function hooks for tracking allocation IDs.",
                     false, false)
 
-ModulePass *llvm::createDynUntrustedAllocPass() {
-  return new DynUntrustedAlloc();
+ModulePass *llvm::createDynUntrustedAllocPrePass() {
+  return new DynUntrustedAllocPre();
 }
 
-// run the syringe pass
-PreservedAnalyses DynUntrustedAllocPass::run(Module &M,
+PreservedAnalyses DynUntrustedAllocPrePass::run(Module &M,
                                              ModuleAnalysisManager &AM) {
-  DynUntrustedAlloc dyn;
+  DynUntrustedAllocPre dyn;
   if (!dyn.runOnModule(M)) {
     return PreservedAnalyses::all();
   }
