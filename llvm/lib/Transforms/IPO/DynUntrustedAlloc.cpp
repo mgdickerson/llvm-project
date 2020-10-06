@@ -146,14 +146,13 @@ public:
         (Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
     } else if (hookInst == reallocHook) {
       newHookInst = CallInst::Create(
-        (Function *)hookInst, {CSInst, CS->getArgument(3), CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)});
-      )
+        (Function *)hookInst, {CSInst, CS->getArgument(3), CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)}
+      );
     } else if (hookInst == deallocHook) {
       newHookInst = CallInst::Create(
-        (Function *)hookInst, {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)});
-      )
+        (Function *)hookInst, {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)}
+      );
     } else {
-      newHookInst == nullptr;
       LLVM_DEBUG(errs() << "Attempted to add hook to non-hook function!\n");
     }
     // Insert hook call after call site instruction
