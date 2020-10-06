@@ -36,6 +36,10 @@
 
 #include <string>
 
+#define DEBUG_TYPE "dyn-untrusted"
+
+using namespace llvm;
+
 namespace {
 class IDGenerator {
   unsigned int id;
@@ -155,13 +159,9 @@ public:
 private:
 };
 
-char DynUntrustedAllocPre::ID = 0;
+char DynUntrustedAllocPost::ID = 0;
 
 } // namespace
-
-#define DEBUG_TYPE "dyn-untrusted"
-
-using namespace llvm;
 
 INITIALIZE_PASS_BEGIN(DynUntrustedAllocPost, "dyn-untrusted-post",
                       "DynUntrustedAlloc: Patch allocation sites with dynamic "
