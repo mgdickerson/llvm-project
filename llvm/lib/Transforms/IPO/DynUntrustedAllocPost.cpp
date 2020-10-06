@@ -65,7 +65,7 @@ public:
   static char ID;
 
   DynUntrustedAllocPost() : ModulePass(ID) {
-    initializeDynUntrustedAllocPassPost(*PassRegistry::getPassRegistry());
+    initializeDynUntrustedAllocPostPass(*PassRegistry::getPassRegistry());
   }
   virtual ~DynUntrustedAllocPost() = default;
 

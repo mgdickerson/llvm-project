@@ -64,7 +64,7 @@ public:
   static char ID;
 
   DynUntrustedAllocPre() : ModulePass(ID) {
-    initializeDynUntrustedAllocPassPre(*PassRegistry::getPassRegistry());
+    initializeDynUntrustedAllocPrePass(*PassRegistry::getPassRegistry());
   }
   virtual ~DynUntrustedAllocPre() = default;
 
@@ -74,16 +74,22 @@ public:
     // to __rust_alloc* functions. Additionally, we must remove the
     // NoInline attribute from RustAlloc functions.
 
+    AttrBuilder attrBldr;
+    attrBldr.addAttribute(Attribute::NoUnwind);
+    attrBldr.addAttribute(Attribute::ArgMemOnly);
+
+    AttributeList fnAttrs = AttributeList::get(M.getContext(), AttributeList::FunctionIndex, attrBldr);
+
     // Make function hook to add to all functions we wish to track
     Constant *allocHookFunc =
-        M.getOrInsertFunction("allocHook", Type::getVoidTy(M.getContext()),
+        M.getOrInsertFunction("allocHook", fnAttrs, Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext()),
                               IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
     allocHook = cast<Function>(allocHookFunc);
 
     Constant *reallocHookFunc =
-        M.getOrInsertFunction("reallocHook", Type::getVoidTy(M.getContext()),
+        M.getOrInsertFunction("reallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext()),
                               IntegerType::get(M.getContext(), 64),
                               Type::getInt8PtrTy(M.getContext()),
@@ -92,7 +98,7 @@ public:
     reallocHook = cast<Function>(reallocHookFunc);
 
     Constant *deallocHookFunc =
-        M.getOrInsertFunction("deallocHook", Type::getVoidTy(M.getContext()),
+        M.getOrInsertFunction("deallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext()),
                               IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
