@@ -21,13 +21,13 @@
 namespace llvm {
 class ModulePass;
 
-class DynUntrustedAllocPassPre : public PassInfoMixin<DynUntrustedAllocPassPre> {
+class DynUntrustedAllocPrePass : public PassInfoMixin<DynUntrustedAllocPrePass> {
     public:
-        DynUntrustedAllocPassPre(){}
+        DynUntrustedAllocPrePass(){}
         PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
-ModulePass *createDynUntrustedAllocPassPre();
+ModulePass *createDynUntrustedAllocPrePass();
 
-void initializeDynUntrustedAllocPassPre(PassRegistry &Registry);
+void initializeDynUntrustedAllocPrePass(PassRegistry &Registry);
 }

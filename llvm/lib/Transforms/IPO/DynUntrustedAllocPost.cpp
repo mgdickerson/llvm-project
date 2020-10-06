@@ -173,11 +173,11 @@ INITIALIZE_PASS_END(DynUntrustedAllocPost, "dyn-untrusted-post",
                     "function hooks for tracking allocation IDs.",
                     false, false)
 
-ModulePass *llvm::createDynUntrustedAllocPassPost() {
+ModulePass *llvm::createDynUntrustedAllocPostPass() {
   return new DynUntrustedAllocPost();
 }
 
-PreservedAnalyses DynUntrustedAllocPassPost::run(Module &M,
+PreservedAnalyses DynUntrustedAllocPostPass::run(Module &M,
                                              ModuleAnalysisManager &AM) {
   DynUntrustedAllocPost dyn;
   if (!dyn.runOnModule(M)) {

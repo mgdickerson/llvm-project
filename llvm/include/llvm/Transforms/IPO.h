@@ -265,10 +265,10 @@ ModulePass *createGlobalSplitPass();
 ModulePass *createUntrustedAllocPass();
 
 // Patches Dynamic Function Calls to Allocation sites for analysis pre-Inliner
-ModulePass *createDynUntrustedAllocPassPre();
+ModulePass *createDynUntrustedAllocPrePass();
 
 // Patches Function Hooks with Unique Identifier post-Inliner
-ModulePass *createDynUntrustedAllocPassPost();
+ModulePass *createDynUntrustedAllocPostPass();
 
 
 //===----------------------------------------------------------------------===//
