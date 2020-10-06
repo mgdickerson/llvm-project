@@ -264,8 +264,12 @@ ModulePass *createGlobalSplitPass();
 // Patches Untrusted Allocation sites
 ModulePass *createUntrustedAllocPass();
 
-// Patches Dynamic Function Calls to Allocation sites for analysis
-ModulePass *createDynUntrustedAllocPass();
+// Patches Dynamic Function Calls to Allocation sites for analysis pre-Inliner
+ModulePass *createDynUntrustedAllocPassPre();
+
+// Patches Function Hooks with Unique Identifier post-Inliner
+ModulePass *createDynUntrustedAllocPassPost();
+
 
 //===----------------------------------------------------------------------===//
 // SampleProfilePass - Loads sample profile data from disk and generates

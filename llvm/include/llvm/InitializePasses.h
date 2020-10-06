@@ -410,7 +410,8 @@ void initializeWriteBitcodePassPass(PassRegistry&);
 void initializeWriteThinLTOBitcodePass(PassRegistry&);
 void initializeXRayInstrumentationPass(PassRegistry&);
 void initializeUntrustedAllocPass(PassRegistry&);
-void initializeDynUntrustedAllocPass(PassRegistry&);
+void initializeDynUntrustedAllocPassPre(PassRegistry&);
+void initializeDynUntrustedAllocPassPost(PassRegistry&);
 
 } // end namespace llvm
 
