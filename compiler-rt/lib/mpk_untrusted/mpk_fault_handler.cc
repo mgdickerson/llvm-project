@@ -15,7 +15,8 @@ static void segMPKHandle(int signal, siginfo_t *si, void *arg) {
 	void *ptr = si->si_addr;
 
     // Deactivate pkru key for current page
-    printf("Reached MPK SegFault for address: %p.\n", ptr);
+	Report("INFO : Reached MPK SegFault for address: %P.\n", ptr);
+    // printf("Reached MPK SegFault for address: %p.\n", ptr);
 }
 
 static inline void __cpuid(unsigned int *eax, unsigned int *ebx,
