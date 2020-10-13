@@ -52,3 +52,7 @@ endif()
 if(COMPILER_RT_BUILD_LIBFUZZER)
   compiler_rt_build_runtime(fuzzer)
 endif()
+
+if(COMPILER_RT_BUILD_MPK_UNTRUSTED)
+  compiler_rt_build_runtime(mpk_untrusted)
+endif()
