@@ -47,10 +47,10 @@ class AllocSiteHandler {
         static AllocSiteHandler* handle;
         // Mapping from memory location pointer to AllocationSite
         std::map<rust_ptr, AllocSite> allocation_map;
-        std::mutex* mx;
+        std::mutex mx;
         AllocSiteHandler() {
             std::map<rust_ptr, AllocSite> allocation_map;
-            mx = new std::mutex();
+            std::mutex mx;
         }
         ~AllocSiteHandler();
     public:
@@ -68,7 +68,7 @@ class AllocSiteHandler {
         
         void insertAllocSite(rust_ptr ptr, AllocSite site) {
             // First, obtain the mutex lock to ensure safe addition of item to map.
-            const auto lock(mx);
+            const std::lock_guard<std::mutex> lock(mx);
 
             // Insert AllocationSite for given ptr.
             allocation_map.insert(std::pair<rust_ptr, AllocSite>(ptr, site));
@@ -78,7 +78,7 @@ class AllocSiteHandler {
 
         void removeAllocSite(rust_ptr ptr) {
             // Obtain mutex lock.
-            const auto lock(mx);
+            const std::lock_guard<std::mutex> lock(mx);
 
             // Remove AllocationSite for given ptr.
             allocation_map.erase(ptr);
@@ -86,7 +86,7 @@ class AllocSiteHandler {
 
         AllocSite getAllocSite(rust_ptr ptr) {
             // Obtain mutex lock.
-            const auto lock(mx);
+            const std::lock_guard<std::mutex> lock(mx);
 
             // Get AllocSite found from given rust_ptr
             auto map_iter = allocation_map.lower_bound(ptr);

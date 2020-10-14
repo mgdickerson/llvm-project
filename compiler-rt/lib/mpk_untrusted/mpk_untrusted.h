@@ -12,7 +12,7 @@ static void mpk_untrusted_constructor() {
     // AllocationSiteHandler will be instantiated on first required call, then accessed
     // on each successive call from the runtime inserts, deletes, and getters.
 
-    Report("INFO : Initializing and replacing segFaultHandler.");
+    __sanitizer::Report("INFO : Initializing and replacing segFaultHandler.");
 
     // Set up our fault handler
     static struct sigaction sa;
