@@ -3,7 +3,7 @@
 include_directories(..)
 
 set(MPK_UNTRUSTED_SOURCES
-    alloc_site_handler.cc
+    alloc_site_handler.cpp
     mpk_fault_handler.cc
     )
 

@@ -1,11 +1,10 @@
 #include "alloc_site_handler.h"
-#include "dyn_interrupt.h"
 #include "mpk_fault_handler.h"
 #include "stddef.h"
 #include "signal.h"
 #include "stdio.h"
 #include <cstring>
-#include "sanitizer_common.h"
+#include "sanitizer_common/sanitizer_common.h"
 
 /// Constructor will intercept allocation functions, initialize allocation_site_handler,
 /// and finally set up the segMPKHandle fault handler.
@@ -13,7 +12,7 @@ static void mpk_untrusted_constructor() {
     // AllocationSiteHandler will be instantiated on first required call, then accessed
     // on each successive call from the runtime inserts, deletes, and getters.
 
-    Report("INFO : Initializing and replacing segFaultHandler.");
+    __sanitizer::Report("INFO : Initializing and replacing segFaultHandler.");
 
     // Set up our fault handler
     static struct sigaction sa;

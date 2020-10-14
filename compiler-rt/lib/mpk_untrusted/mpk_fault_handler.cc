@@ -2,23 +2,6 @@
 
 #define XSTATE_PKRU_BIT (9)
 
-static void segMPKHandle(int signal, siginfo_t *si, void *arg) {
-    ucontext_t *uctxt = (ucontext_t *)arg;
-    fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
-    char *fpregs = (char *)fpregset;
-    int pkru_offset = pkru_xstate_offset();
-
-    // Obtains the pkru pointer for current segfault handle
-    uint32_t *pkru_ptr = (uint32_t *)(&fpregs[pkru_offset]);
-
-	// Obtains pointer causing fault
-	void *ptr = si->si_addr;
-
-    // Deactivate pkru key for current page
-	Report("INFO : Reached MPK SegFault for address: %P.\n", ptr);
-    // printf("Reached MPK SegFault for address: %p.\n", ptr);
-}
-
 static inline void __cpuid(unsigned int *eax, unsigned int *ebx,
                             		unsigned int *ecx, unsigned int *edx)
 {
@@ -56,6 +39,23 @@ static inline int pkru_xstate_offset(void)
     	return 0;
     }
     return xstate_offset;
+}
+
+static void segMPKHandle(int signal, siginfo_t *si, void *arg) {
+    ucontext_t *uctxt = (ucontext_t *)arg;
+    fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
+    char *fpregs = (char *)fpregset;
+    int pkru_offset = pkru_xstate_offset();
+
+    // Obtains the pkru pointer for current segfault handle
+    uint32_t *pkru_ptr = (uint32_t *)(&fpregs[pkru_offset]);
+
+	// Obtains pointer causing fault
+	void *ptr = si->si_addr;
+
+    // Deactivate pkru key for current page
+	__sanitizer::Report("INFO : Reached MPK SegFault for address: %P.\n", ptr);
+    // printf("Reached MPK SegFault for address: %p.\n", ptr);
 }
 
 // inline static void pkey_init()
