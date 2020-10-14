@@ -47,10 +47,10 @@ class AllocSiteHandler {
         static AllocSiteHandler* handle;
         // Mapping from memory location pointer to AllocationSite
         std::map<rust_ptr, AllocSite> allocation_map;
-        std::mutex mx;
+        std::mutex* mx;
         AllocSiteHandler() {
             std::map<rust_ptr, AllocSite> allocation_map;
-            std::mutex mx;
+            mx = new std::mutex();
         }
         ~AllocSiteHandler();
     public:
