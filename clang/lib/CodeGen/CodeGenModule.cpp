@@ -1228,6 +1228,12 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   if (CodeGenOpts.UnwindTables)
     B.addAttribute(llvm::Attribute::UWTable);
 
+  if(D->hasAttr<RustAllocatorAttr>())
+      B.addAttribute(llvm::Attribute::RustAllocator);
+  
+  if(D->hasAttr<UntrustedAttr>())
+      B.addAttribute(llvm::Attribute::Untrusted);
+
   if (!hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);
 
