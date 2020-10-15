@@ -36,14 +36,15 @@ foreach(arch ${SANITIZER_COMMON_SUPPORTED_ARCH})
         CFLAGS ${MPK_UNTRUSTED_CFLAGS}
         PARENT_TARGET mpk_untrusted)
 
-    add_compiler_rt_runtime(clang_rt.mpk_untrusted
-        SHARED
-        ARCHS ${arch}
-        SOURCES ${MPK_UNTRUSTED_SOURCES}
-                $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
-        ADDITIONAL_HEADERS ${MPK_UNTRUSTED_HEADERS}
-        CFLAGS ${MPK_UNTRUSTED_CFLAGS}
-        LINK_FLAGS ${MPK_UNTRUSTED_LINK_FLAGS}
-        LINK_LIBS ${MPK_UNTRUSTED_DYNAMIC_LIBS}
-        PARENT_TARGET mpk_untrusted)
+# TODO : Missing some files I need to include in order for shared library to build correctly.
+#    add_compiler_rt_runtime(clang_rt.mpk_untrusted
+#        SHARED
+#        ARCHS ${arch}
+#        SOURCES ${MPK_UNTRUSTED_SOURCES}
+#                $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
+#        ADDITIONAL_HEADERS ${MPK_UNTRUSTED_HEADERS}
+#        CFLAGS ${MPK_UNTRUSTED_CFLAGS}
+#        LINK_FLAGS ${MPK_UNTRUSTED_LINK_FLAGS}
+#        LINK_LIBS ${MPK_UNTRUSTED_DYNAMIC_LIBS}
+#        PARENT_TARGET mpk_untrusted)
 endforeach()
