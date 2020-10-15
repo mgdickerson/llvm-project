@@ -1007,6 +1007,10 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.InstrumentFunctionEntryBare =
       Args.hasArg(OPT_finstrument_function_entry_bare);
 
+  // TODO : Unsure if this particular line needs to be included, 
+  // since it should always be on and has no threashold.
+  // Opts.MPKUntrusted = Args.hasArg(OPT_fmpkuntrusted);
+
   Opts.XRayInstrumentFunctions =
       Args.hasArg(OPT_fxray_instrument);
   Opts.XRayAlwaysEmitCustomEvents =
@@ -2988,6 +2992,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.XRayNeverInstrumentFiles =
       Args.getAllArgValues(OPT_fxray_never_instrument);
   Opts.XRayAttrListFiles = Args.getAllArgValues(OPT_fxray_attr_list);
+
+  // -fmpk_untrusted
+  Opts.MPKUntrusted = Args.hasArg(OPT_fmpk_untrusted, OPT_fnompk_untrusted, false);
 
   // -fforce-emit-vtables
   Opts.ForceEmitVTables = Args.hasArg(OPT_fforce_emit_vtables);

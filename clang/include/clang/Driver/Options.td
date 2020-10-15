@@ -1176,6 +1176,12 @@ def fcf_protection : Flag<["-"], "fcf-protection">, Group<f_Group>, Flags<[CoreO
   Alias<fcf_protection_EQ>, AliasArgs<["full"]>,
   HelpText<"Enable cf-protection in 'full' mode">;
 
+def fmpk_untrusted : Flag<["-"], "fmpk_untrusted">, Group<f_Group>,
+  Flags<[CC1Option]>,
+  HelpText<"Enable MPK untrusted dynamic analysis">;
+def fnompk_untrusted : Flag<["-"], "fno-mpk_untrusted">, Group<f_Group>,
+  Flags<[CC1Option]>;
+
 def fxray_instrument : Flag<["-"], "fxray-instrument">, Group<f_Group>,
   Flags<[CC1Option]>,
   HelpText<"Generate XRay instrumentation sleds on function entry and exit">;

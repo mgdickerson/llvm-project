@@ -30,6 +30,7 @@
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
+#include "clang/Driver/MPKUntrustedArgs.h"
 #include "clang/Driver/XRayArgs.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
@@ -4481,6 +4482,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   const SanitizerArgs &Sanitize = TC.getSanitizerArgs();
   Sanitize.addArgs(TC, Args, CmdArgs, InputType);
 
+  const MPKUntrustedArgs &MPKUntrusted = TC.getMPKUntrustedArgs();
+  MPKUntrusted.addArgs(TC, Args, CmdArgs, InputType);
+
   const XRayArgs &XRay = TC.getXRayArgs();
   XRay.addArgs(TC, Args, CmdArgs, InputType);
 
@@ -4759,6 +4763,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.hasArg(options::OPT_fno_inline))
     CmdArgs.push_back("-fno-inline");
+
+  if (Args.hasArg(options::OPT_fnompk_untrusted))
+    CmdArgs.push_back("-fno-mpk_untrusted");
+  
+  if (Args.hasArg(options::OPT_fmpk_untrusted))
+    CmdArgs.push_back("-fmpk_untrusted");
 
   if (Arg* InlineArg = Args.getLastArg(options::OPT_finline_functions,
                                        options::OPT_finline_hint_functions,

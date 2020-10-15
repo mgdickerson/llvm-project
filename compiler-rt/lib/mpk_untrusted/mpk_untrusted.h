@@ -1,10 +1,10 @@
-#include "alloc_site_handler.h"
+//#include "alloc_site_handler.h"
 #include "mpk_fault_handler.h"
 #include "stddef.h"
 #include "signal.h"
 #include "stdio.h"
 #include <cstring>
-#include "sanitizer_common/sanitizer_common.h"
+//#include "sanitizer_common/sanitizer_common.h"
 
 /// Constructor will intercept allocation functions, initialize allocation_site_handler,
 /// and finally set up the segMPKHandle fault handler.
