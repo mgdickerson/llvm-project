@@ -6,8 +6,8 @@
 // License. See LICENSE.TXT for details.
 //
 //===--------------------------------------------------------------------------------===//
-#ifndef LLVM_CLANG_DRIVER_MPKUNTRUSTEDARGS_H
-#define LLVM_CLANG_DRIVER_MPKUNTRUSTEDARGS_H
+//#ifndef LLVM_CLANG_DRIVER_MPKUNTRUSTEDARGS_H
+//#define LLVM_CLANG_DRIVER_MPKUNTRUSTEDARGS_H
 
 #include "clang/Driver/Types.h"
 #include "llvm/Option/Arg.h"
@@ -39,4 +39,4 @@ public:
 } // namespace driver
 } // namespace clang
 
-#endif // LLVM_CLANG_DRIVER_SYRINGEARGS_H
+//#endif // LLVM_CLANG_DRIVER_SYRINGEARGS_H

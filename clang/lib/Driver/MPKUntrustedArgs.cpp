@@ -41,7 +41,7 @@ MPKUntrustedArgs::MPKUntrustedArgs(const ToolChain &TC, const ArgList &Args) {
                 break;
             default:
                 D.Diag(diag::err_drv_clang_unsupported)
-                    << (std::string(SyringeInstrumentOption) + " on " + Triple.str());
+                    << (std::string(MPKUntrustedInstrumentOption) + " on " + Triple.str());
             }
         } else if (Triple.getOS() == llvm::Triple::FreeBSD ||
                 Triple.getOS() == llvm::Triple::OpenBSD ||
@@ -49,23 +49,24 @@ MPKUntrustedArgs::MPKUntrustedArgs(const ToolChain &TC, const ArgList &Args) {
                 Triple.getOS() == llvm::Triple::NetBSD) {
             if (Triple.getArch() != llvm::Triple::x86_64) {
                 D.Diag(diag::err_drv_clang_unsupported)
-                    << (std::string(SyringeInstrumentOption) + " on " + Triple.str());
+                    << (std::string(MPKUntrustedInstrumentOption) + " on " + Triple.str());
             }
         } else {
             D.Diag(diag::err_drv_clang_unsupported)
-                << (std::string(SyringeInstrumentOption) + " on " + Triple.str());
+                << (std::string(MPKUntrustedInstrumentOption) + " on " + Triple.str());
         }
 
         MPKUntrusted = true;
+	MPKUntrustedRT = true;
 
-        if (!Args.hasFlag(options::OPT_fmpk_untrusted_link_deps,
-                          options::OPT_fnompk_untrusted_link_deps, true))
-            MPKUntrustedRT = false;
+        //if (!Args.hasFlag(options::OPT_fmpk_untrusted_link_deps,
+        //                  options::OPT_fnompk_untrusted_link_deps, true))
+        //    MPKUntrustedRT = false;
     }
 }
 
 void MPKUntrustedArgs::addArgs(const ToolChain &TC, const ArgList &Args,
-                               ArgStringList &CmdArgs, types::ID InputType) {
+                               ArgStringList &CmdArgs, types::ID InputType) const {
     if (!MPKUntrusted)
         return;
 

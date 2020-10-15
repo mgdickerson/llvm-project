@@ -2994,7 +2994,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.XRayAttrListFiles = Args.getAllArgValues(OPT_fxray_attr_list);
 
   // -fmpk_untrusted
-  Opts.MPKUntrusted = Args.hasArg(OPT_fmpkuntrusted, OPT_fnompkuntrusted, flase);
+  Opts.MPKUntrusted = Args.hasArg(OPT_fmpk_untrusted, OPT_fnompk_untrusted, false);
 
   // -fforce-emit-vtables
   Opts.ForceEmitVTables = Args.hasArg(OPT_fforce_emit_vtables);
