@@ -7017,6 +7017,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_RustAllocator:
     handleSimpleAttribute<RustAllocatorAttr>(S, D, AL);
     break;
+    
   case ParsedAttr::AT_Untrusted:
     handleSimpleAttribute<UntrustedAttr>(S, D, AL);
     break;

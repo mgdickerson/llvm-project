@@ -1230,6 +1230,7 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
 
   if(D->hasAttr<RustAllocatorAttr>())
       B.addAttribute(llvm::Attribute::RustAllocator);
+  
   if(D->hasAttr<UntrustedAttr>())
       B.addAttribute(llvm::Attribute::Untrusted);
 
