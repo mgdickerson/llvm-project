@@ -771,7 +771,7 @@ void tools::linkMPKUntrustedRuntimeDeps(const ToolChain &TC, ArgStringList &CmdA
     CmdArgs.push_back("-lrt");
   CmdArgs.push_back("-lm");
   CmdArgs.push_back("-lstdc++");
-  CmdArgs.push_bakc("-lpthread");
+  CmdArgs.push_back("-lpthread");
   CmdArgs.push_back("-ldl");  
 }
 
