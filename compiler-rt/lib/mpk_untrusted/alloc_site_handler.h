@@ -1,3 +1,6 @@
+#ifndef ALLOCSITEHANDLER_H
+#define ALLOCSITEHANDLER_H
+
 #include <assert.h>
 #include <stddef.h>
 #include <map>
@@ -114,8 +117,8 @@ class AllocSiteHandler {
         }
 };
 
-AllocSiteHandler* AllocSiteHandler::handle = nullptr;
-
 void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID);
 void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr, int64_t oldSize, int64_t uniqueID);
 void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID);
+
+#endif

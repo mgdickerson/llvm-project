@@ -771,11 +771,8 @@ void tools::linkMPKUntrustedRuntimeDeps(const ToolChain &TC, ArgStringList &CmdA
     CmdArgs.push_back("-lrt");
   CmdArgs.push_back("-lm");
   CmdArgs.push_back("-lstdc++");
-
-  if (TC.getTriple().getOS() != llvm::Triple::OpenBSD &&
-      TC.getTriple().getOS() != llvm::Triple::FreeBSD &&
-      TC.getTriple().getOS() != llvm::Triple::NetBSD)
-    CmdArgs.push_back("-ldl");
+  CmdArgs.push_back("-lpthread");
+  CmdArgs.push_back("-ldl");  
 }
 
 bool tools::addXRayRuntime(const ToolChain&TC, const ArgList &Args, ArgStringList &CmdArgs) {
