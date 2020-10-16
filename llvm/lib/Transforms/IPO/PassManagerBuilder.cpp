@@ -160,6 +160,10 @@ static cl::opt<bool>
     EnableCHR("enable-chr", cl::init(true), cl::Hidden,
               cl::desc("Enable control height reduction optimization (CHR)"));
 
+static cl::opt<bool>
+    MPKPass("mpk-pass", cl::init(false), cl::Hidden,
+            cl::desc("Enables the static instrumentation for the MPK Untrusted Analysis pass."));
+
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
@@ -834,12 +838,20 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   addInstructionCombiningPass(PM);
   addExtensionsToPM(EP_Peephole, PM);
 
+  // Run DynUntrustedAlloctionPre before Inliner
+  if (MPKPass)
+    PM.add(createDynUntrustedAllocPrePass());
+
   // Inline small functions
   bool RunInliner = Inliner;
   if (RunInliner) {
     PM.add(Inliner);
     Inliner = nullptr;
   }
+
+  // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
+  if (MPKPass)
+    PM.add(createDynUntrustedAllocPostPass());
 
   PM.add(createPruneEHPass());   // Remove dead EH info.
 
