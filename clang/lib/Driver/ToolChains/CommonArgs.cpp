@@ -770,6 +770,7 @@ void tools::linkMPKUntrustedRuntimeDeps(const ToolChain &TC, ArgStringList &CmdA
   if (TC.getTriple().getOS() != llvm::Triple::OpenBSD)
     CmdArgs.push_back("-lrt");
   CmdArgs.push_back("-lm");
+  CmdArgs.push_back("-lstdc++");
 
   if (TC.getTriple().getOS() != llvm::Triple::OpenBSD &&
       TC.getTriple().getOS() != llvm::Triple::FreeBSD &&
