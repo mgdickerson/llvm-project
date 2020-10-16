@@ -4,7 +4,7 @@ include_directories(..)
 
 set(MPK_UNTRUSTED_SOURCES
     alloc_site_handler.cpp
-    mpk_fault_handler.cc
+    mpk_fault_handler.cpp
     )
 
 set(MPK_UNTRUSTED_HEADERS
@@ -37,6 +37,7 @@ foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
         ARCHS ${arch}
         SOURCES ${MPK_UNTRUSTED_SOURCES}
                 $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
+                $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
         ADDITIONAL_HEADERS ${MPK_UNTRUSTED_HEADERS}
         CFLAGS ${MPK_UNTRUSTED_CFLAGS}
         PARENT_TARGET mpk_untrusted)
@@ -46,8 +47,9 @@ foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
         SHARED
         ARCHS ${arch}
         SOURCES ${MPK_UNTRUSTED_SOURCES}
-                $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
         ADDITIONAL_HEADERS ${MPK_UNTRUSTED_HEADERS}
+        OBJECT_LIBS RTSanitizerCommon
+                    RTSanitizerCommonLibc
         CFLAGS ${MPK_UNTRUSTED_CFLAGS}
         LINK_FLAGS ${MPK_UNTRUSTED_LINK_FLAGS}
         LINK_LIBS ${MPK_UNTRUSTED_DYNAMIC_LIBS}
