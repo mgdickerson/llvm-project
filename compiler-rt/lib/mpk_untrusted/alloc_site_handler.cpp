@@ -1,5 +1,7 @@
 #include "alloc_site_handler.h"
 
+AllocSiteHandler* AllocSiteHandler::handle = nullptr;
+
 void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
     AllocSite site = AllocSite(ptr, size, uniqueID);
     

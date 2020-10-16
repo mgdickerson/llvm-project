@@ -1,3 +1,6 @@
+#ifndef MPKUNTRUSTED_H
+#define MPKUNTRUSTED_H
+
 //#include "alloc_site_handler.h"
 #include "mpk_fault_handler.h"
 #include "stddef.h"
@@ -28,3 +31,5 @@ static void mpk_untrusted_constructor() {
 static void __attribute__((constructor)) mpk_untrusted() {
     mpk_untrusted_constructor();
 }
+
+#endif
