@@ -455,7 +455,7 @@ void PassManagerBuilder::populateModulePassManager(
 
     // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
     if (MPKPass)
-      PM.add(createDynUntrustedAllocPostPass());
+      MPM.add(createDynUntrustedAllocPostPass());
 
     // FIXME: The BarrierNoopPass is a HACK! The inliner pass above implicitly
     // creates a CGSCC pass manager, but we don't want to add extensions into
@@ -561,7 +561,7 @@ void PassManagerBuilder::populateModulePassManager(
 
   // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
   if (MPKPass)
-    PM.add(createDynUntrustedAllocPostPass());
+    MPM.add(createDynUntrustedAllocPostPass());
 
   MPM.add(createPostOrderFunctionAttrsLegacyPass());
   if (OptLevel > 2)

@@ -16,6 +16,7 @@ static void mpk_untrusted_constructor() {
     // on each successive call from the runtime inserts, deletes, and getters.
 
     __sanitizer::Report("INFO : Initializing and replacing segFaultHandler.");
+    //std::printf("Reaches this point.");
 
     // Set up our fault handler
     static struct sigaction sa;
