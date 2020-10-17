@@ -443,10 +443,19 @@ void PassManagerBuilder::populateModulePassManager(
   // if enabled, the function merging pass.
   if (OptLevel == 0) {
     addPGOInstrPasses(MPM);
+
+    // Run DynUntrustedAlloctionPre before Inliner
+    if (MPKPass)
+      MPM.add(createDynUntrustedAllocPrePass());
+
     if (Inliner) {
       MPM.add(Inliner);
       Inliner = nullptr;
     }
+
+    // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
+    if (MPKPass)
+      MPM.add(createDynUntrustedAllocPostPass());
 
     // FIXME: The BarrierNoopPass is a HACK! The inliner pass above implicitly
     // creates a CGSCC pass manager, but we don't want to add extensions into
@@ -537,6 +546,10 @@ void PassManagerBuilder::populateModulePassManager(
   // for the entire SCC pass run below.
   MPM.add(createGlobalsAAWrapperPass());
 
+  // Run DynUntrustedAlloctionPre before Inliner
+  if (MPKPass)
+    MPM.add(createDynUntrustedAllocPrePass());
+
   // Start of CallGraph SCC passes.
   MPM.add(createPruneEHPass()); // Remove dead EH info
   bool RunInliner = false;
@@ -545,6 +558,10 @@ void PassManagerBuilder::populateModulePassManager(
     Inliner = nullptr;
     RunInliner = true;
   }
+
+  // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
+  if (MPKPass)
+    MPM.add(createDynUntrustedAllocPostPass());
 
   MPM.add(createPostOrderFunctionAttrsLegacyPass());
   if (OptLevel > 2)

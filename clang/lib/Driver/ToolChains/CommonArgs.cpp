@@ -757,6 +757,8 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
 bool tools::addMPKUntrustedRuntime(const ToolChain &TC, const ArgList &Args, ArgStringList &CmdArgs) {
   if (TC.getMPKUntrustedArgs().needsMPKUntrustedRt()) {
     CmdArgs.push_back("-whole-archive");
+    // TODO : Both static and dynamic libraries should work, going to build 
+    // with dynamic libraries for now to make testing faster when we make changes.
     CmdArgs.push_back(TC.getCompilerRTArgString(Args, "mpk_untrusted", false));
     CmdArgs.push_back("-no-whole-archive");
     return true;
