@@ -87,6 +87,8 @@ public:
                               IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
     allocHook = cast<Function>(allocHookFunc);
+    // set its linkage
+    allocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
     Constant *reallocHookFunc =
         M.getOrInsertFunction("reallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
@@ -96,6 +98,7 @@ public:
                               IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
     reallocHook = cast<Function>(reallocHookFunc);
+    reallocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
     Constant *deallocHookFunc =
         M.getOrInsertFunction("deallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
@@ -103,6 +106,7 @@ public:
                               IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
     deallocHook = cast<Function>(deallocHookFunc);
+    deallocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
     hookAllocFunctions(M);
 
