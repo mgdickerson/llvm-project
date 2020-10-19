@@ -86,7 +86,8 @@ public:
                               Type::getInt8PtrTy(M.getContext()),
                               IntegerType::get(M.getContext(), 64),
                               IntegerType::getInt64Ty(M.getContext()));
-    allocHook = cast<Function>(allocHookFunc);
+    allocHook = M.getFunction("allocHook");
+    // allocHook = cast<Function>(allocHookFunc);
     // set its linkage
     allocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
