@@ -59,8 +59,7 @@ public:
 
 static IDGenerator IDG;
 
-class DynUntrustedAllocPost : public ModulePass
-{
+class DynUntrustedAllocPost : public ModulePass {
 public:
   static char ID;
 
@@ -71,7 +70,7 @@ public:
 
   bool runOnModule(Module &M) override {
     // Post inliner pass, iterate over all functions and find hook CallSites.
-    // Assign a unique ID in a deterministic pattern to ensure UniqueID is 
+    // Assign a unique ID in a deterministic pattern to ensure UniqueID is
     // consistent between runs.
     assignUniqueIDs(M);
 
@@ -107,7 +106,9 @@ public:
     return hookFns;
   }
 
-  static bool funcSort(Function *F1, Function *F2) { return F1->getName().data() > F2->getName().data(); }
+  static bool funcSort(Function *F1, Function *F2) {
+    return F1->getName().data() > F2->getName().data();
+  }
 
   void assignUniqueIDs(Module &M) {
     std::vector<Function *> WorkList;
@@ -178,7 +179,7 @@ ModulePass *llvm::createDynUntrustedAllocPostPass() {
 }
 
 PreservedAnalyses DynUntrustedAllocPostPass::run(Module &M,
-                                             ModuleAnalysisManager &AM) {
+                                                 ModuleAnalysisManager &AM) {
   DynUntrustedAllocPost dyn;
   if (!dyn.runOnModule(M)) {
     return PreservedAnalyses::all();
