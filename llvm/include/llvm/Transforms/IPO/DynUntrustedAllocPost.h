@@ -9,7 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the constructor for the Dynamic Untrusted Allocation passes.
+// This file defines the constructor for the Dynamic Untrusted Allocation
+// passes.
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,13 +22,14 @@
 namespace llvm {
 class ModulePass;
 
-class DynUntrustedAllocPostPass : public PassInfoMixin<DynUntrustedAllocPostPass> {
-    public:
-        DynUntrustedAllocPostPass(){}
-        PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+class DynUntrustedAllocPostPass
+    : public PassInfoMixin<DynUntrustedAllocPostPass> {
+public:
+  DynUntrustedAllocPostPass() {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 ModulePass *createDynUntrustedAllocPostPass();
 
 void initializeDynUntrustedAllocPostPass(PassRegistry &Registry);
-}
+} // namespace llvm

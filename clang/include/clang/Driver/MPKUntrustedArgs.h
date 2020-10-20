@@ -1,4 +1,5 @@
-//===--- MPKUntrustedArgs.h - Arguments for MPKUntrusted ------------------*- C++ -*-===//
+//===--- MPKUntrustedArgs.h - Arguments for MPKUntrusted ------------------*-
+//C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -23,17 +24,17 @@ namespace driver {
 class ToolChain;
 
 class MPKUntrustedArgs {
-    bool MPKUntrusted = false;
-    bool MPKUntrustedRT = true;
+  bool MPKUntrusted = false;
+  bool MPKUntrustedRT = true;
 
 public:
-    /// Parses the MPKUntrusted arguments from an argument list.
-    MPKUntrustedArgs(const ToolChain &TC, const llvm::opt::ArgList &Args);
-    void addArgs(const ToolChain &TC, const llvm::opt::ArgList & Args,
-                 llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;
+  /// Parses the MPKUntrusted arguments from an argument list.
+  MPKUntrustedArgs(const ToolChain &TC, const llvm::opt::ArgList &Args);
+  void addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
+               llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;
 
-    // Checks if the MPKUntrusted Runtime is requried.
-    bool needsMPKUntrustedRt() const { return MPKUntrusted && MPKUntrustedRT; }
+  // Checks if the MPKUntrusted Runtime is requried.
+  bool needsMPKUntrustedRt() const { return MPKUntrusted && MPKUntrustedRT; }
 };
 
 } // namespace driver

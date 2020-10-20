@@ -78,34 +78,35 @@ public:
     attrBldr.addAttribute(Attribute::NoUnwind);
     attrBldr.addAttribute(Attribute::ArgMemOnly);
 
-    AttributeList fnAttrs = AttributeList::get(M.getContext(), AttributeList::FunctionIndex, attrBldr);
+    AttributeList fnAttrs = AttributeList::get(
+        M.getContext(), AttributeList::FunctionIndex, attrBldr);
 
     // Make function hook to add to all functions we wish to track
-    Constant *allocHookFunc =
-        M.getOrInsertFunction("allocHook", fnAttrs, Type::getVoidTy(M.getContext()),
-                              Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 64),
-                              IntegerType::getInt64Ty(M.getContext()));
+    Constant *allocHookFunc = M.getOrInsertFunction(
+        "allocHook", fnAttrs, Type::getVoidTy(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()),
+        IntegerType::get(M.getContext(), 64),
+        IntegerType::getInt64Ty(M.getContext()));
     allocHook = M.getFunction("allocHook");
     // allocHook = cast<Function>(allocHookFunc);
     // set its linkage
     allocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
-    Constant *reallocHookFunc =
-        M.getOrInsertFunction("reallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
-                              Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 64),
-                              Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 64),
-                              IntegerType::getInt64Ty(M.getContext()));
+    Constant *reallocHookFunc = M.getOrInsertFunction(
+        "reallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()),
+        IntegerType::get(M.getContext(), 64),
+        Type::getInt8PtrTy(M.getContext()),
+        IntegerType::get(M.getContext(), 64),
+        IntegerType::getInt64Ty(M.getContext()));
     reallocHook = cast<Function>(reallocHookFunc);
     reallocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
-    Constant *deallocHookFunc =
-        M.getOrInsertFunction("deallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
-                              Type::getInt8PtrTy(M.getContext()),
-                              IntegerType::get(M.getContext(), 64),
-                              IntegerType::getInt64Ty(M.getContext()));
+    Constant *deallocHookFunc = M.getOrInsertFunction(
+        "deallocHook", fnAttrs, Type::getVoidTy(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()),
+        IntegerType::get(M.getContext(), 64),
+        IntegerType::getInt64Ty(M.getContext()));
     deallocHook = cast<Function>(deallocHookFunc);
     deallocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
@@ -127,7 +128,7 @@ public:
 
   void hookFunction(Module &M, std::string Name, Function *Hook) {
     Function *F = M.getFunction(Name);
-    if(!F)
+    if (!F)
       return;
 
     for (auto caller : F->users()) {
@@ -150,16 +151,17 @@ public:
 
     Instruction *newHookInst;
     if (hookInst == allocHook) {
-      newHookInst = CallInst::Create(
-        (Function *)hookInst, {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
+      newHookInst =
+          CallInst::Create((Function *)hookInst,
+                           {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
     } else if (hookInst == reallocHook) {
       newHookInst = CallInst::Create(
-        (Function *)hookInst, {CSInst, CS->getArgument(3), CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)}
-      );
+          (Function *)hookInst, {CSInst, CS->getArgument(3), CS->getArgument(0),
+                                 CS->getArgument(1), IDG.getDummyID(M)});
     } else if (hookInst == deallocHook) {
       newHookInst = CallInst::Create(
-        (Function *)hookInst, {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)}
-      );
+          (Function *)hookInst,
+          {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)});
     } else {
       LLVM_DEBUG(errs() << "Attempted to add hook to non-hook function!\n");
     }
@@ -207,7 +209,7 @@ ModulePass *llvm::createDynUntrustedAllocPrePass() {
 }
 
 PreservedAnalyses DynUntrustedAllocPrePass::run(Module &M,
-                                             ModuleAnalysisManager &AM) {
+                                                ModuleAnalysisManager &AM) {
   DynUntrustedAllocPre dyn;
   if (!dyn.runOnModule(M)) {
     return PreservedAnalyses::all();
