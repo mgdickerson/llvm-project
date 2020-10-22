@@ -35,7 +35,15 @@ static inline int pkru_xstate_offset(void) {
   return xstate_offset;
 }
 
-void segMPKHandle(int signal, siginfo_t *si, void *arg) {
+void segMPKHandle(int sig, siginfo_t *si, void *arg) {
+  if (si->si_code != SEGV_PKUERR) {
+    // SignalHandler was invoked from an error other than MPK violation.
+    // Perform default action instead and return.
+    signal(sig, SIG_DFL);
+    raise(sig);
+    return;
+  }
+
   ucontext_t *uctxt = (ucontext_t *)arg;
   fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
   char *fpregs = (char *)fpregset;
