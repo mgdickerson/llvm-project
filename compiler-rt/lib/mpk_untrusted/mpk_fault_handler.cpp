@@ -48,7 +48,8 @@ void segMPKHandle(int signal, siginfo_t *si, void *arg) {
   void *ptr = si->si_addr;
 
   // Deactivate pkru key for current page
-  __sanitizer::Report("INFO : Reached MPK SegFault for address: %P.\n", ptr);
+  __sanitizer::Report("INFO : Reached MPK SegFault for address: %p.\n", ptr);
+  exit(1);
 }
 
 // inline static void pkey_init()
