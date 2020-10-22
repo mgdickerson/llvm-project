@@ -7,6 +7,6 @@
 #include <signal.h>
 #include <stdio.h>
 
-static void segMPKHandle(int signal, siginfo_t *si, void *arg);
+extern void segMPKHandle(int signal, siginfo_t *si, void *arg);
 
 #endif
