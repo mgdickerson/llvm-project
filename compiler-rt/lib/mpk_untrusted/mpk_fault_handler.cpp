@@ -29,13 +29,13 @@ static inline int pkru_xstate_offset(void) {
     xstate_size = eax;
   }
   if (xstate_size == 0) {
-    printf("could not find size/offset of PKRU in xsave state\n");
+    __sanitizer::Report("INFO : Could not find size/offset of PKRU in xsave state\n");
     return 0;
   }
   return xstate_offset;
 }
 
-static void segMPKHandle(int signal, siginfo_t *si, void *arg) {
+void segMPKHandle(int signal, siginfo_t *si, void *arg) {
   ucontext_t *uctxt = (ucontext_t *)arg;
   fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
   char *fpregs = (char *)fpregset;
@@ -48,8 +48,8 @@ static void segMPKHandle(int signal, siginfo_t *si, void *arg) {
   void *ptr = si->si_addr;
 
   // Deactivate pkru key for current page
-  __sanitizer::Report("INFO : Reached MPK SegFault for address: %P.\n", ptr);
-  // printf("Reached MPK SegFault for address: %p.\n", ptr);
+  __sanitizer::Report("INFO : Reached MPK SegFault for address: %p.\n", ptr);
+  exit(1);
 }
 
 // inline static void pkey_init()
