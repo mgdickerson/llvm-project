@@ -2,6 +2,7 @@
 #define MPKSEGFAULTHANDLER_H
 
 #include "alloc_site_handler.h"
+#include "mpk.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include <cstdint>
 #include <signal.h>
