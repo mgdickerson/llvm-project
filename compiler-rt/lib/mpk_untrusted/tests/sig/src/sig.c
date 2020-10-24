@@ -1,31 +1,45 @@
 // define a macro so that we can access register indexes from ucontext.h
 #define _GNU_SOURCE
 #include <signal.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <ucontext.h>
+#include <unistd.h>
 
 #define PAGE_SIZE 4096
 #define TF 0x100
 #define si_pkey_offset 0x20
 
+// uses write directly
+// only 128 char strings
+void sig_printf(const char* format, ...)
+{
+    char msg[128];
+    va_list argp;
+    va_start(argp, format);
+    snprintf(&msg[0], 128, format, argp);
+    write(STDOUT_FILENO, msg, strlen(msg));
+}
+
 void segv_handler(int signal, siginfo_t* si, void* vucontext)
 {
-    printf("Enter SEGV Handler\n");
+    sig_printf("Enter SEGV Handler\n");
 
     uint64_t mask = ~(PAGE_SIZE - 1);
     // Obtains pointer causing fault
     void* ptr = si->si_addr;
     uintptr_t ptr_val = (uintptr_t)ptr;
 
-    printf("ptr = %p\n", ptr);
+    sig_printf("ptr = %p\n", ptr);
     void* aligned_ptr = (void*)(ptr_val & mask);
-    printf("aligned_tpr = %p\n", aligned_ptr);
+
+    sig_printf("aligned_tpr = %p\n", aligned_ptr);
     mprotect(aligned_ptr, PAGE_SIZE, PROT_READ | PROT_WRITE);
 
-    printf("mprotect() done\n");
+    sig_printf("mprotect() done\n");
     // set trap flag
 
     ucontext_t* uctxt = vucontext;
@@ -35,7 +49,7 @@ void segv_handler(int signal, siginfo_t* si, void* vucontext)
 
 void trap_handler(int signal, siginfo_t* si, void* vucontext)
 {
-    printf("handling a trap!\n");
+    sig_printf("handling a trap!\n");
     ucontext_t* uctxt = vucontext;
     // clear trap flag so we can restore pkru regiser
     uctxt->uc_mcontext.gregs[REG_EFL] &= ~TF;
@@ -69,10 +83,9 @@ int main()
         printf("mmap failed\n");
         return -1;
     }
+
     printf("ptr = %p\n", ptr);
-
     strncpy(ptr, "hello world!", 1024);
-
     printf("*ptr = '%s'\n", ptr);
     return 0;
 }
