@@ -26,7 +26,7 @@
 #ifndef ALLOCATOR_MPK_H
 #define ALLOCATOR_MPK_H
 
-#include <stddef.h>
+#include "mpk_common.h"
 
 namespace __mpk_untrusted {
     #ifdef __i386__

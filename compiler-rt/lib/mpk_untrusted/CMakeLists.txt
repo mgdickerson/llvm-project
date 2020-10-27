@@ -10,6 +10,7 @@ set(MPK_UNTRUSTED_SOURCES
 
 set(MPK_UNTRUSTED_HEADERS
     alloc_site_handler.h
+    mpk_common.h
     mpk_fault_handler.h
     mpk_untrusted.h
     )
