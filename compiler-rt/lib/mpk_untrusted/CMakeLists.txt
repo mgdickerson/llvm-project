@@ -2,6 +2,8 @@
 
 include_directories(..)
 
+add_subdirectory(tests)
+
 set(MPK_UNTRUSTED_SOURCES
     alloc_site_handler.cpp
     mpk.cpp
