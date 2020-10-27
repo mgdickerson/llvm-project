@@ -3,10 +3,7 @@
 
 #include "alloc_site_handler.h"
 #include "mpk.h"
-#include "sanitizer_common/sanitizer_common.h"
-#include <cstdint>
-#include <signal.h>
-#include <stdio.h>
+#include "mpk_common.h"
 
 extern void segMPKHandle(int signal, siginfo_t *si, void *arg);
 

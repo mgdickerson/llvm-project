@@ -5,7 +5,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <stddef.h>
+#include "mpk_common.h"
 
 typedef int8_t *rust_ptr;
 

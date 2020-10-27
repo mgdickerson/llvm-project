@@ -9,6 +9,8 @@
 #include <ucontext.h>
 #include <unistd.h>
 
+#include "../util/mpk_untrusted_test_config.h"
+
 #define PAGE_SIZE 4096
 #define TF 0x100
 #define si_pkey_offset 0x20
@@ -55,37 +57,44 @@ void trap_handler(int signal, siginfo_t* si, void* vucontext)
     uctxt->uc_mcontext.gregs[REG_EFL] &= ~TF;
 }
 
-//TODO: refactor to use w/ GTEST
-int main()
-{
+TEST(SigHandler, SigTest) {
     struct sigaction sa_segv;
 
     sa_segv.sa_flags = SA_SIGINFO;
     sigemptyset(&sa_segv.sa_mask);
     sa_segv.sa_sigaction = segv_handler;
-    if (sigaction(SIGSEGV, &sa_segv, NULL) == -1) {
-        printf("Failed to register sigaction for SIGSEGV\n.");
-        return -1;
-    }
+    ASSERT_NE(sigaction(SIGSEGV, &sa_segv, NULL), -1) << "Failed to register sigaction for SIGSEGV.\n";
+    // if (sigaction(SIGSEGV, &sa_segv, NULL) == -1) {
+    //     printf("Failed to register sigaction for SIGSEGV\n.");
+    //     return -1;
+    // }
 
     struct sigaction sa_trap;
 
     sa_trap.sa_flags = SA_SIGINFO;
     sigemptyset(&sa_trap.sa_mask);
     sa_trap.sa_sigaction = trap_handler;
-    if (sigaction(SIGTRAP, &sa_trap, NULL) == -1) {
-        printf("Failed to register sigaction for SIGTRAP\n.");
-        return -1;
-    }
+    ASSERT_NE(sigaction(SIGTRAP, &sa_trap, NULL), -1) << "Failed to register sigaction for SIGTRAP.\n";
+    // if (sigaction(SIGTRAP, &sa_trap, NULL) == -1) {
+    //     printf("Failed to register sigaction for SIGTRAP\n.");
+    //     return -1;
+    // }
 
     char* ptr = mmap(NULL, PAGE_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-    if (ptr == MAP_FAILED) {
-        printf("mmap failed\n");
-        return -1;
-    }
+    ASSERT_NE(ptr, MAP_FAILED) << "mmap failed.\n";
+    // if (ptr == MAP_FAILED) {
+    //     printf("mmap failed\n");
+    //     return -1;
+    // }
 
     printf("ptr = %p\n", ptr);
     strncpy(ptr, "hello world!", 1024);
     printf("*ptr = '%s'\n", ptr);
     return 0;
 }
+
+//TODO: refactor to use w/ GTEST
+// int main()
+// {
+    
+// }

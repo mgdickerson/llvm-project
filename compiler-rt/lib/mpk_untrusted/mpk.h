@@ -26,7 +26,7 @@
 #ifndef ALLOCATOR_MPK_H
 #define ALLOCATOR_MPK_H
 
-#include <stddef.h>
+#include "mpk_common.h"
 
 namespace __mpk_untrusted {
     #ifdef __i386__
@@ -89,49 +89,10 @@ namespace __mpk_untrusted {
      */
     int pkey_free(unsigned long pkey);
 
-    static inline void __cpuid(unsigned int *eax, unsigned int *ebx,
-            unsigned int *ecx, unsigned int *edx)
-    {
-        /* ecx is often an input as well as an output. */
-        asm volatile(
-            "cpuid;"
-            : "=a" (*eax),
-            "=b" (*ebx),
-            "=c" (*ecx),
-            "=d" (*edx)
-            : "0" (*eax), "2" (*ecx));
-    }
-
     #define XSTATE_PKRU_BIT	(9)
     #define XSTATE_PKRU	0x200
 
-    int pkru_xstate_offset(void)
-    {
-        unsigned int eax;
-        unsigned int ebx;
-        unsigned int ecx;
-        unsigned int edx;
-        int xstate_offset;
-        int xstate_size;
-        unsigned long XSTATE_CPUID = 0xd;
-        int leaf;
-        /* assume that XSTATE_PKRU is set in XCR0 */
-        leaf = XSTATE_PKRU_BIT;
-        {
-            eax = XSTATE_CPUID;
-            ecx = leaf;
-            __cpuid(&eax, &ebx, &ecx, &edx);
-            if (leaf == XSTATE_PKRU_BIT) {
-                xstate_offset = ebx;
-                xstate_size = eax;
-            }
-        }
-        if (xstate_size == 0) {
-            __sanitizer::Report("INFO : Could not find size/offset of PKRU in xsave state\n");
-            return 0;
-        }
-        return xstate_offset;
-    }
+    int pkru_xstate_offset(void);
 }
 
 #endif        // ALLOCATOR_MPK_H

@@ -4,12 +4,15 @@ include_directories(..)
 
 set(MPK_UNTRUSTED_SOURCES
     alloc_site_handler.cpp
+    mpk.cpp
     mpk_fault_handler.cpp
     mpk_untrusted.cpp
     )
 
 set(MPK_UNTRUSTED_HEADERS
     alloc_site_handler.h
+    mpk.h
+    mpk_common.h
     mpk_fault_handler.h
     mpk_untrusted.h
     )
@@ -26,10 +29,10 @@ set(MPK_UNTRUSTED_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARY} ${SANITIZER_COMMON_L
 #    CFLAGS ${MPK_UNTRUSTED_CFLAGS}
 #    )
 
-message(STATUS "MPK_UNTRUSTED_CFLAGS ${MPK_UNTRUSTED_CFLAGS}")
-message(STATUS "MPK_UNTRUSTED_LINK_FLAGS ${MPK_UNTRUSTED_LINK_FLAGS}")
-message(STATUS "MPK_UNTRUSTED_DYNAMIC_LIBS ${MPK_UNTRUSTED_DYNAMIC_LIBS}")
-message(STATUS "MPK_SUPPORTED_ARCHES ${MPK_UNTRUSTED_SUPPORTED_ARCH}")
+#message(STATUS "MPK_UNTRUSTED_CFLAGS ${MPK_UNTRUSTED_CFLAGS}")
+#message(STATUS "MPK_UNTRUSTED_LINK_FLAGS ${MPK_UNTRUSTED_LINK_FLAGS}")
+#message(STATUS "MPK_UNTRUSTED_DYNAMIC_LIBS ${MPK_UNTRUSTED_DYNAMIC_LIBS}")
+#message(STATUS "MPK_SUPPORTED_ARCHES ${MPK_UNTRUSTED_SUPPORTED_ARCH}")
 
 add_compiler_rt_component(mpk_untrusted)
 foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
@@ -56,3 +59,5 @@ foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
         LINK_LIBS ${MPK_UNTRUSTED_DYNAMIC_LIBS}
         PARENT_TARGET mpk_untrusted)
 endforeach()
+
+add_subdirectory(tests)

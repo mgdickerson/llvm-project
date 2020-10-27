@@ -4,6 +4,7 @@ void disableMPK(int signum, siginfo_t *si, void *arg);
 
 void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   if (si->si_code != SEGV_PKUERR) {
+    __sanitizer::Report("INFO : SegFault other than SEGV_PKUERR, handling with default handler.");
     // SignalHandler was invoked from an error other than MPK violation.
     // Perform default action instead and return.
     signal(sig, SIG_DFL);
@@ -18,10 +19,11 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
 
   // Obtains pointer causing fault
   void *ptr = si->si_addr;
+  uint32_t pkey = si->si_pkey;
   
   // Get Alloc Site information from the handler.
   auto handler = AllocSiteHandler::init();
-  __sanitizer::Report("INFO : Got Allocation Site (%d) for address: %p with pkey: %d.\n", (*handler)->getAllocSite((rust_ptr)ptr), ptr, sig_pkey);
+  __sanitizer::Report("INFO : Got Allocation Site (%d) for address: %p with pkey: %d or %d.\n", (*handler)->getAllocSite((rust_ptr)ptr), ptr, sig_pkey, pkey);
 
   // Logic for segfault handling separated out for 
   // easier switching between implementation strategies.
