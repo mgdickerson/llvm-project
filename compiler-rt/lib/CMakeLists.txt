@@ -55,6 +55,5 @@ endif()
 
 message(STATUS "COMPILER_RT_BUILD_MPK_UNTRUSTED=${COMPILER_RT_BUILD_MPK_UNTRUSTED}")
 if(COMPILER_RT_BUILD_MPK_UNTRUSTED)
-  message("Building mpk_untrsuted")
   compiler_rt_build_runtime(mpk_untrusted)
 endif()
