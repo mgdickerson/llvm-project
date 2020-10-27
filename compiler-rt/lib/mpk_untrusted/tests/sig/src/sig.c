@@ -9,7 +9,7 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-#include "util/mpk_untrusted_test_config.h"
+#include "../util/mpk_untrusted_test_config.h"
 
 #define PAGE_SIZE 4096
 #define TF 0x100

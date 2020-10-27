@@ -2,8 +2,6 @@
 
 include_directories(..)
 
-add_subdirectory(tests)
-
 set(MPK_UNTRUSTED_SOURCES
     alloc_site_handler.cpp
     mpk.cpp
@@ -61,3 +59,5 @@ foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
         LINK_LIBS ${MPK_UNTRUSTED_DYNAMIC_LIBS}
         PARENT_TARGET mpk_untrusted)
 endforeach()
+
+add_subdirectory(tests)
