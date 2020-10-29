@@ -1,12 +1,12 @@
 #include "alloc_site_handler.h"
 #include "sanitizer_common/sanitizer_common.h"
 
-AllocSiteHandler *AllocSiteHandler::handle = nullptr;
+std::shared_ptr<AllocSiteHandler>AllocSiteHandler::handle = nullptr;
 
 void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   AllocSite site = AllocSite(ptr, size, uniqueID);
   auto handler = AllocSiteHandler::init();
-  (*handler)->insertAllocSite(ptr, site);
+  handler->insertAllocSite(ptr, site);
   __sanitizer::Report("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
 }
@@ -18,9 +18,9 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // TODO : For now we are simply going to remove the old one and input the new
   // one.
   auto handler = AllocSiteHandler::init();
-  (*handler)->removeAllocSite(oldPtr);
+  handler->removeAllocSite(oldPtr);
   AllocSite site = AllocSite(newPtr, newSize, uniqueID);
-  (*handler)->insertAllocSite(newPtr, site);
+  handler->insertAllocSite(newPtr, site);
   __sanitizer::Report(
       "INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
       newPtr, uniqueID);
@@ -28,7 +28,7 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
 
 void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   auto handler = AllocSiteHandler::init();
-  (*handler)->removeAllocSite(ptr);
+  handler->removeAllocSite(ptr);
   __sanitizer::Report("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
 }

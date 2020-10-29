@@ -23,7 +23,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   
   // Get Alloc Site information from the handler.
   auto handler = AllocSiteHandler::init();
-  __sanitizer::Report("INFO : Got Allocation Site (%d) for address: %p with pkey: %d or %d.\n", (*handler)->getAllocSite((rust_ptr)ptr), ptr, sig_pkey, pkey);
+  __sanitizer::Report("INFO : Got Allocation Site (%d) for address: %p with pkey: %d or %d.\n", handler->getAllocSite((rust_ptr)ptr).id(), ptr, sig_pkey, pkey);
 
   // Logic for segfault handling separated out for 
   // easier switching between implementation strategies.
