@@ -4,6 +4,7 @@ void disableMPK(int signum, siginfo_t *si, void *arg);
 
 void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   if (si->si_code != SEGV_PKUERR) {
+    __sanitizer::Report("INFO : SegFault other than SEGV_PKUERR, handling with default handler.");
     // SignalHandler was invoked from an error other than MPK violation.
     // Perform default action instead and return.
     signal(sig, SIG_DFL);
