@@ -88,6 +88,11 @@ public:
     // Obtain mutex lock.
     const std::lock_guard<std::mutex> lock(mx);
 
+    if (allocation_map.empty()) {
+      __sanitizer::Report("INFO : Map is empty, returning error.");
+      return AllocSite::error();
+    }
+
     // Get AllocSite found from given rust_ptr
     auto map_iter = allocation_map.lower_bound(ptr);
 
@@ -113,6 +118,7 @@ public:
       }
     }
 
+    __sanitizer::Report("INFO : Returning AllocSite::error()");
     return AllocSite::error();
   }
 };
