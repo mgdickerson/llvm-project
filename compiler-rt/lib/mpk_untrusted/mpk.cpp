@@ -129,8 +129,8 @@ int pkru_xstate_offset(void) {
   unsigned int ebx;
   unsigned int ecx;
   unsigned int edx;
-  int xstate_offset;
-  int xstate_size;
+  int xstate_offset=0;
+  int xstate_size=0;
   unsigned long XSTATE_CPUID = 0xd;
   int leaf;
   /* assume that XSTATE_PKRU is set in XCR0 */
