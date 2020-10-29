@@ -52,15 +52,16 @@ private:
     std::map<rust_ptr, AllocSite> allocation_map;
     std::mutex mx;
   }
-  ~AllocSiteHandler();
 
 public:
+  ~AllocSiteHandler() {}
+
   static std::shared_ptr<AllocSiteHandler> init() {
     if (!handle) {
-      handle = std::make_shared<AllocSiteHandler>(new AllocSiteHandler());
+      handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
     }
 
-    return std::make_shared<AllocSiteHandler>(handle);
+    return handle;
   }
 
   bool empty() { return allocation_map.empty(); }
