@@ -1,29 +1,23 @@
 #ifndef ALLOCSITEHANDLER_H
 #define ALLOCSITEHANDLER_H
 
-#include <assert.h>
+#include "sanitizer_common/sanitizer_common.h"
+
+#include <cassert>
 #include <map>
 #include <memory>
 #include <mutex>
-#include <set>
-#include "mpk_common.h"
 
 typedef int8_t *rust_ptr;
+
+namespace __mpk_untrusted {
 
 class AllocSite {
 private:
   rust_ptr ptr;
   int64_t size;
   int64_t uniqueID;
-  uint32_t pkey;
-  AllocSite() {
-    ptr = nullptr;
-    size = -1;
-    uniqueID = -1;
-    // As pkey currently only has 16 potential keys, 
-    // 16 should indicate an invalid key.
-    pkey = 16;
-  }
+  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1) {}
 
 public:
   AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID)
@@ -35,9 +29,9 @@ public:
 
   static AllocSite error() { return AllocSite(); }
 
-  // TODO : Note, might be important to cast pointers to uintptr_t type for
-  // arithmetic comparisons if it behaves incorrectly.
   bool containsPtr(rust_ptr ptrCmp) {
+    // TODO : Note, might be important to cast pointers to uintptr_t type for
+    // arithmetic comparisons if it behaves incorrectly.
     return (ptr <= ptrCmp) && (ptrCmp < (ptr + size));
   }
 
@@ -72,7 +66,7 @@ public:
   ~AllocSiteHandler() {}
 
   static std::shared_ptr<AllocSiteHandler> init() {
-    if (!handle) {
+    if (handle) {
       handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
     }
 
@@ -151,7 +145,7 @@ public:
     fault_set.insert(alloc);
   }
 };
-
+} // namespace mpk
 extern "C" {
 __attribute__((visibility("default"))) void
 allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID);

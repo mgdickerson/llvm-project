@@ -20,86 +20,86 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-// This file supplies a set of APIs similar or identical to those found in glibc-2.27
-// We mimic these for future compatibility with standard libraries.
+// This file supplies a set of APIs similar or identical to those found in
+// glibc-2.27 We mimic these for future compatibility with standard libraries.
 
 #ifndef ALLOCATOR_MPK_H
 #define ALLOCATOR_MPK_H
 
-#include "mpk_common.h"
+#include <cstddef>
 
 namespace __mpk_untrusted {
-    #ifdef __i386__
-        #define si_pkey_offset		0x14
-    #else
-        #define si_pkey_offset		0x20
-    #endif
+#ifdef __i386__
+#define si_pkey_offset 0x14
+#else
+#define si_pkey_offset 0x20
+#endif
 
-    #define HAS_MPK 1
-    
-    #define PKEY_ENABLE_ACCESS     0x0
-    #define PKEY_DISABLE_ACCESS    0x1
-    #define PKEY_DISABLE_WRITE     0x2
+#define HAS_MPK 1
 
-    #define INVALID_PKEY           0x16
+#define PKEY_ENABLE_ACCESS     0x0
+#define PKEY_DISABLE_ACCESS    0x1
+#define PKEY_DISABLE_WRITE     0x2
 
-    /**
-     * Wrapper for RDPKRU instruction
-     * @return value of pkru register
-     *
-     */
-    unsigned int pkey_read();
+#define INVALID_PKEY           0x16
 
-    /**
-     * Wrapper for WRPKRU instruction
-     * @param pkru new PKRU value
-     */
-    void pkey_write(unsigned int pkru);
+/**
+ * Wrapper for RDPKRU instruction
+ * @return value of pkru register
+ *
+ */
+unsigned int pkey_read();
 
-    /**
-     * Gets the protection bits for key from PKRU register
-     *
-     * @param key The protection key to check
-     * @return the protection bits for key
-     */
-    int pkey_get(unsigned int *pkru, int key);
+/**
+ * Wrapper for WRPKRU instruction
+ * @param pkru new PKRU value
+ */
+void pkey_write(unsigned int pkru);
 
-    /**
-     * Sets the protection bits for key in the PKRU register
-     *
-     * @param pkey  the protection key to set the bits for
-     * @param rights the Read/Write bits to set
-     * @return -1 error, 0 success
-     */
-    int pkey_set(unsigned int *pkru, int key, unsigned int rights);
+/**
+ * Gets the protection bits for key from PKRU register
+ *
+ * @param key The protection key to check
+ * @return the protection bits for key
+ */
+int pkey_get(unsigned int *pkru, int key);
 
-    /***
-     * Set the protection bits in the PTE for Addr, acording to pkey
-     * @param addr the address to protect w/ pkey
-     * @param len  the size of the region to set mpk protection
-     * @param prot The normal OS page permissions
-     * @param pkey The mpk protection key to assign
-     * @return 0 success, -1 error
-     */
-    int pkey_mprotect(void* addr, size_t len, int prot, int pkey);
+/**
+ * Sets the protection bits for key in the PKRU register
+ *
+ * @param pkey  the protection key to set the bits for
+ * @param rights the Read/Write bits to set
+ * @return -1 error, 0 success
+ */
+int pkey_set(unsigned int *pkru, int key, unsigned int rights);
 
-    /**
-     * Allocate a new protection key
-     * @return the new protection key on success, -1 on failure
-     */
-    int pkey_alloc();
+/***
+ * Set the protection bits in the PTE for Addr, acording to pkey
+ * @param addr the address to protect w/ pkey
+ * @param len  the size of the region to set mpk protection
+ * @param prot The normal OS page permissions
+ * @param pkey The mpk protection key to assign
+ * @return 0 success, -1 error
+ */
+int pkey_mprotect(void *addr, size_t len, int prot, int pkey);
 
-    /**
-     * Release the protection key
-     * @param pkey the protection key to release
-     * @return 0 on success, -1 on failure
-     */
-    int pkey_free(unsigned long pkey);
+/**
+ * Allocate a new protection key
+ * @return the new protection key on success, -1 on failure
+ */
+int pkey_alloc();
 
-    #define XSTATE_PKRU_BIT	(9)
-    #define XSTATE_PKRU	0x200
+/**
+ * Release the protection key
+ * @param pkey the protection key to release
+ * @return 0 on success, -1 on failure
+ */
+int pkey_free(unsigned long pkey);
 
-    int pkru_xstate_offset(void);
-}
+#define XSTATE_PKRU_BIT (9)
+#define XSTATE_PKRU 0x200
 
-#endif        // ALLOCATOR_MPK_H
+int pkru_xstate_offset(void);
+} // namespace __mpk_untrusted
+
+#endif // ALLOCATOR_MPK_H

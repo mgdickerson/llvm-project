@@ -1,4 +1,7 @@
 #include "mpk_fault_handler.h"
+#include "alloc_site_handler.h"
+#include "mpk.h"
+#include "mpk_common.h"
 
 uint32_t last_pkey = INVALID_PKEY;
 unsigned int last_access_rights = PKEY_DISABLE_ACCESS;
@@ -7,7 +10,8 @@ void disableMPK(int signum, siginfo_t *si, void *arg);
 
 void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   if (si->si_code != SEGV_PKUERR) {
-    __sanitizer::Report("INFO : SegFault other than SEGV_PKUERR, handling with default handler.\n");
+    __sanitizer::Report("INFO : SegFault other than SEGV_PKUERR, handling with "
+                        "default handler.\n");
     // SignalHandler was invoked from an error other than MPK violation.
     // Perform default action instead and return.
     signal(sig, SIG_DFL);
@@ -20,19 +24,20 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
 
   // Obtains the faulting pkey (in SEGV_PKUERR faults)
   uint32_t pkey = si->si_pkey;
-  
-  // Add fauling allocation to the set via the handler.
-  auto handler = AllocSiteHandler::init();
-  __sanitizer::Report("INFO : Found Allocation Site (%d) for address: %p with pkey: %d.\n", handler->getAllocSite((rust_ptr)ptr).id(), ptr, pkey);
-  handler->addFaultAlloc((rust_ptr)ptr, pkey);
 
-  // Logic for segfault handling separated out for 
+  // Get Alloc Site information from the handler.
+  auto handler = __mpk_untrusted::AllocSiteHandler::init();
+  __sanitizer::Report(
+      "INFO : Got Allocation Site (%d) for address: %p with pkey: %d or %d.\n",
+      handler->getAllocSite((rust_ptr)ptr).id(), ptr, pkey);
+
+  // Logic for segfault handling separated out for
   // easier switching between implementation strategies.
   disableMPK(sig, si, arg);
 }
 
 /// Get the PKRU pointer from ucontext
-uint32_t *get_pkru_pointer(void* arg) {
+uint32_t *get_pkru_pointer(void *arg) {
   ucontext_t *uctxt = (ucontext_t *)arg;
   fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
   char *fpregs = (char *)fpregset;
