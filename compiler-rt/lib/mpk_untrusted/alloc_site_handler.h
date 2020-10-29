@@ -44,7 +44,7 @@ public:
 class AllocSiteHandler {
 private:
   // Singleton AllocSiteHandler pointer
-  static AllocSiteHandler *handle;
+  static std::shared_ptr<AllocSiteHandler> handle;
   // Mapping from memory location pointer to AllocationSite
   std::map<rust_ptr, AllocSite> allocation_map;
   std::mutex mx;
@@ -55,12 +55,12 @@ private:
   ~AllocSiteHandler();
 
 public:
-  static std::shared_ptr<AllocSiteHandler *> init() {
+  static std::shared_ptr<AllocSiteHandler> init() {
     if (!handle) {
-      handle = new AllocSiteHandler();
+      handle = std::make_shared<AllocSiteHandler>(new AllocSiteHandler());
     }
 
-    return std::make_shared<AllocSiteHandler *>(handle);
+    return std::make_shared<AllocSiteHandler>(handle);
   }
 
   bool empty() { return allocation_map.empty(); }
