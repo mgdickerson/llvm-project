@@ -1228,12 +1228,6 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   if (CodeGenOpts.UnwindTables)
     B.addAttribute(llvm::Attribute::UWTable);
 
-  if(D->hasAttr<RustAllocatorAttr>())
-      B.addAttribute(llvm::Attribute::RustAllocator);
-  
-  if(D->hasAttr<UntrustedAttr>())
-      B.addAttribute(llvm::Attribute::Untrusted);
-
   if (!hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);
 
@@ -1257,6 +1251,13 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
     F->addAttributes(llvm::AttributeList::FunctionIndex, B);
     return;
   }
+
+
+  if(D->hasAttr<RustAllocatorAttr>())
+      B.addAttribute(llvm::Attribute::RustAllocator);
+  
+  if(D->hasAttr<UntrustedAttr>())
+      B.addAttribute(llvm::Attribute::Untrusted);
 
   // Track whether we need to add the optnone LLVM attribute,
   // starting with the default for this optimization level.

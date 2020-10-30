@@ -66,7 +66,7 @@ public:
   ~AllocSiteHandler() {}
 
   static std::shared_ptr<AllocSiteHandler> init() {
-    if (handle) {
+    if (!handle) {
       handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
     }
 

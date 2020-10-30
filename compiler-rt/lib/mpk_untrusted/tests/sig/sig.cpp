@@ -1,15 +1,18 @@
 // define a macro so that we can access register indexes from ucontext.h
 #define _GNU_SOURCE
-#include <signal.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
+#include <csignal>
+#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <sys/mman.h>
 #include <ucontext.h>
 #include <unistd.h>
 
+// TODO: This should not need a relative path, either use an include dir or
+// relocate in lib
 #include "../util/mpk_untrusted_test_config.h"
+#include "gtest/gtest.h"
 
 #define PAGE_SIZE 4096
 #define TF 0x100
@@ -42,14 +45,14 @@ void segv_handler(int signal, siginfo_t *si, void *vucontext) {
   sig_printf("mprotect() done\n");
   // set trap flag
 
-  ucontext_t *uctxt = vucontext;
+  ucontext_t *uctxt = (ucontext_t *)vucontext;
   // set trap flag on next instruction
   uctxt->uc_mcontext.gregs[REG_EFL] |= TF;
 }
 
 void trap_handler(int signal, siginfo_t *si, void *vucontext) {
   sig_printf("handling a trap!\n");
-  ucontext_t *uctxt = vucontext;
+  ucontext_t *uctxt = (ucontext_t *)vucontext;
   // clear trap flag so we can restore pkru regiser
   uctxt->uc_mcontext.gregs[REG_EFL] &= ~TF;
 }
@@ -79,18 +82,19 @@ TEST(SigHandler, SigTest) {
   //     return -1;
   // }
 
-  char *ptr =
-      mmap(NULL, PAGE_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+  char *ptr = (char *)mmap(NULL, PAGE_SIZE, PROT_NONE,
+                           MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
   ASSERT_NE(ptr, MAP_FAILED) << "mmap failed.\n";
   // if (ptr == MAP_FAILED) {
   //     printf("mmap failed\n");
   //     return -1;
   // }
 
-  printf("ptr = %p\n", ptr);
+  //printf("ptr = %p\n", ptr);
   strncpy(ptr, "hello world!", 1024);
-  printf("*ptr = '%s'\n", ptr);
-  return 0;
+  EXPECT_STREQ(ptr, "hello world!");
+
+  //printf("*ptr = '%s'\n", ptr);
 }
 
 // TODO: refactor to use w/ GTEST
