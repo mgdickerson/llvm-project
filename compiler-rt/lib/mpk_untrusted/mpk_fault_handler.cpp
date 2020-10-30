@@ -48,7 +48,6 @@ uint32_t *get_pkru_pointer(void *arg) {
 void disableThreadMPK(void *arg, uint32_t pkey) {
   auto pkru_ptr = get_pkru_pointer(arg);
 
-<<<<<<< HEAD
   last_pkey = pkey;
   last_access_rights = __mpk_untrusted::pkey_get(pkru_ptr, pkey);
   __mpk_untrusted::pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
@@ -72,20 +71,3 @@ void disableMPK(int signum, siginfo_t *si, void *arg) {
     disableThreadMPK(arg, si->si_pkey);
   #endif
 }
-=======
-  // TODO : For now until I can confirm that the pkey from *si is the actual
-  // pkey we will give permission by just complete overwriting the register.
-  // uint64_t PKRU_STATE = *(uint64_t *)pkru_ptr;
-  *(uint64_t *)pkru_ptr = 0x00000000;
-  __sanitizer::Report(
-      "INFO : PKRU register set to 0 to enable instruction access.\n");
-}
-
-void disableMPK(int signum, siginfo_t *si, void *arg) {
-#if PAGE_MPK
-  // TODO
-#else
-  disableThreadMPK(arg);
-#endif
-}
->>>>>>> gtest
