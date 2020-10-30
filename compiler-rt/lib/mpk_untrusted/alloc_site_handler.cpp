@@ -1,10 +1,12 @@
 #include "alloc_site_handler.h"
 #include "sanitizer_common/sanitizer_common.h"
 
-std::shared_ptr<AllocSiteHandler>AllocSiteHandler::handle = nullptr;
+namespace __mpk_untrusted {
+
+std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
 
 void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
-  AllocSite site = AllocSite(ptr, size, uniqueID);
+  AllocSite site(ptr, size, uniqueID);
   auto handler = AllocSiteHandler::init();
   handler->insertAllocSite(ptr, site);
   __sanitizer::Report("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr,
@@ -19,7 +21,7 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // one.
   auto handler = AllocSiteHandler::init();
   handler->removeAllocSite(oldPtr);
-  AllocSite site = AllocSite(newPtr, newSize, uniqueID);
+  AllocSite site(newPtr, newSize, uniqueID);
   handler->insertAllocSite(newPtr, site);
   __sanitizer::Report(
       "INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
@@ -32,3 +34,5 @@ void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   __sanitizer::Report("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
 }
+
+} // namespace __mpk_untrusted

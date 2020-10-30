@@ -1,4 +1,7 @@
 #include "mpk_untrusted.h"
+#include "mpk_fault_handler.h"
+#include "sanitizer_common/sanitizer_common.h"
+#include <cstring>
 
 /// Constructor will intercept allocation functions, initialize
 /// allocation_site_handler, and finally set up the segMPKHandle fault handler.
