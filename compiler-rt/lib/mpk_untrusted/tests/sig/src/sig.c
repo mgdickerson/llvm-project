@@ -9,7 +9,10 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-#include "../util/mpk_untrusted_test_config.h"
+// TODO: This should not need a relative path, either use an include dir or
+// relocate in lib
+#include "../../util/mpk_untrusted_test_config.h"
+#include "gtest/gtest.h"
 
 #define PAGE_SIZE 4096
 #define TF 0x100
