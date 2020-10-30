@@ -4,6 +4,7 @@
 #include "alloc_site_handler.h"
 
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace __mpk_untrusted {
 

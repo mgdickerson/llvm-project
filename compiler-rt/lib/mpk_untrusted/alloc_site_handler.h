@@ -16,7 +16,7 @@ namespace __mpk_untrusted {
 
 struct FaultingSite {
   int64_t uniqueID;
-  uint32_t pkey;
+  int64_t pkey;
 };
 
 class AllocSite {

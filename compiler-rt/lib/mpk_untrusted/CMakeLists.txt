@@ -8,6 +8,7 @@ set(MPK_UNTRUSTED_SOURCES
     mpk_fault_handler.cpp
     mpk_untrusted.cpp
     )
+    #mpk_formatter.cpp
 
 set(MPK_UNTRUSTED_HEADERS
     alloc_site_handler.h
@@ -16,6 +17,7 @@ set(MPK_UNTRUSTED_HEADERS
     mpk_fault_handler.h
     mpk_untrusted.h
     )
+    #mpk_formatter.h
 
 set(MPK_UNTRUSTED_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 set(MPK_UNTRUSTED_LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS})

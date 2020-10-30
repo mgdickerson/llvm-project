@@ -1,5 +1,4 @@
 #include "mpk_formatter.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace __mpk_untrusted {
 
