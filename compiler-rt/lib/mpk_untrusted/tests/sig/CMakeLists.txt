@@ -2,7 +2,7 @@
 #add_executable(sig src/sig.c)
 
 set(MPK_UNIT_SOURCES
-	sig.c
+	sig.cpp
 	mpk_untrusted_unit_test_main.cpp
 	)
 

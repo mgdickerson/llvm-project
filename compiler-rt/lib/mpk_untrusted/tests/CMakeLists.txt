@@ -23,12 +23,10 @@ set(MPK_UNITTEST_CFLAGS
 set(MPK_TEST_ARCH ${X86_64})
 set(LINK_FLAGS
 	-lstdc++
+	-lpthread
 	-lm)
 
 set(MPK_RTL_HEADERS)
-foreach (header ${MPK_UNTRUSTED_HEADERS})
-	list(APPEND MPK_RTL_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../${header})
-endforeach()
 message(STATUS "MPK_RTL_HEADERS : ${MPK_RTL_HEADERS}")
 
 macro(add_mpk_unittest testname)
