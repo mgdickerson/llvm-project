@@ -6,22 +6,22 @@ set(MPK_UNTRUSTED_SOURCES
     alloc_site_handler.cpp
     mpk.cpp
     mpk_fault_handler.cpp
+    mpk_formatter.cpp
     mpk_untrusted.cpp
     )
-    #mpk_formatter.cpp
 
 set(MPK_UNTRUSTED_HEADERS
     alloc_site_handler.h
     mpk.h
     mpk_common.h
     mpk_fault_handler.h
+    mpk_formatter.h
     mpk_untrusted.h
     )
-    #mpk_formatter.h
 
 set(MPK_UNTRUSTED_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 set(MPK_UNTRUSTED_LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS})
-set(MPK_UNTRUSTED_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARY} ${SANITIZER_COMMON_LINK_LIBS} dl pthread rt)
+set(MPK_UNTRUSTED_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARY} ${SANITIZER_COMMON_LINK_LIBS} ${CMAKE_BINARY_DIR}/lib/libLLVMSupport.a dl pthread rt)
 
 #add_compiler_rt_object_libraries(RTMPKUntrustedCommon
 #    OS ${SANITIZER_COMMON_SUPPORTED_OS}
@@ -46,6 +46,7 @@ foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
                 $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
         ADDITIONAL_HEADERS ${MPK_UNTRUSTED_HEADERS}
         CFLAGS ${MPK_UNTRUSTED_CFLAGS}
+        LINK_LIBS ${CMAKE_BINARY_DIR}/lib/libLLVMSupport.a
         PARENT_TARGET mpk_untrusted)
 
 # TODO : Missing some files I need to include in order for shared library to build correctly.
