@@ -1,5 +1,4 @@
 #include "alloc_site_handler.h"
-#include "sanitizer_common/sanitizer_common.h"
 
 namespace __mpk_untrusted {
 

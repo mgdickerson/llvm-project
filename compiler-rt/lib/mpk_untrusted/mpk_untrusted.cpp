@@ -1,5 +1,6 @@
 #include "mpk_untrusted.h"
 #include "mpk_fault_handler.h"
+#include "mpk_formatter.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include <cstring>
 
@@ -20,6 +21,9 @@ static void mpk_untrusted_constructor() {
   sa.sa_flags = SA_SIGINFO;
   sa.sa_sigaction = segMPKHandle;
   sigaction(SIGSEGV, &sa, &sa_old);
+
+  // Add final action flushAllocs()
+  std::atexit(__mpk_untrusted::flushAllocs);
 }
 
 /// __attribute((constructor)) should allow this function to run before main.
