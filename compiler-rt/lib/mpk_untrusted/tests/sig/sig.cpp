@@ -90,11 +90,11 @@ TEST(SigHandler, SigTest) {
   //     return -1;
   // }
 
-  //printf("ptr = %p\n", ptr);
+  // printf("ptr = %p\n", ptr);
   strncpy(ptr, "hello world!", 1024);
   EXPECT_STREQ(ptr, "hello world!");
 
-  //printf("*ptr = '%s'\n", ptr);
+  // printf("*ptr = '%s'\n", ptr);
 }
 
 // TODO: refactor to use w/ GTEST

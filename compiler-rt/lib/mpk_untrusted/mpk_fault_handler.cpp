@@ -52,9 +52,10 @@ void disableThreadMPK(void *arg, uint32_t pkey) {
   last_pkey = pkey;
   last_access_rights = __mpk_untrusted::pkey_get(pkru_ptr, pkey);
   __mpk_untrusted::pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
-  
+
   // *(uint64_t *)pkru_ptr = 0x00000000;
-  __sanitizer::Report("INFO : Pkey has been set to ENABLE_ACCESS to enable instruction access.\n");
+  __sanitizer::Report("INFO : Pkey has been set to ENABLE_ACCESS to enable "
+                      "instruction access.\n");
 }
 
 void enableThreadMPK(void *arg, uint32_t pkey) {
@@ -66,9 +67,9 @@ void enableThreadMPK(void *arg, uint32_t pkey) {
 }
 
 void disableMPK(int signum, siginfo_t *si, void *arg) {
-  #if PAGE_MPK
-    // TODO
-  #else
-    disableThreadMPK(arg, si->si_pkey);
-  #endif
+#if PAGE_MPK
+  // TODO
+#else
+  disableThreadMPK(arg, si->si_pkey);
+#endif
 }

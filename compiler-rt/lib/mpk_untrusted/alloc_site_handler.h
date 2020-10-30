@@ -3,12 +3,12 @@
 
 #include "sanitizer_common/sanitizer_common.h"
 
+#include "mpk_common.h"
 #include <cassert>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
-#include "mpk_common.h"
 
 typedef int8_t *rust_ptr;
 
@@ -48,9 +48,7 @@ public:
 
   uint32_t getPkey() { return pkey; }
 
-  bool operator<(const AllocSite& ac) const {
-    return uniqueID < ac.id();
-  }
+  bool operator<(const AllocSite &ac) const { return uniqueID < ac.id(); }
 };
 
 class AllocSiteHandler {
@@ -136,10 +134,12 @@ public:
 
   void addFaultAlloc(rust_ptr ptr, uint32_t pkey) {
     auto alloc = getAllocSite(ptr);
-    __sanitizer::Report("INFO : Getting AllocSite : id(%d), ptr(%p)\n", alloc.id(), alloc.getPtr());
+    __sanitizer::Report("INFO : Getting AllocSite : id(%d), ptr(%p)\n",
+                        alloc.id(), alloc.getPtr());
 
     if (!alloc.isValid()) {
-      __sanitizer::Report("INFO : AllocSite is not valid, will not add it to Fault Set.\n");
+      __sanitizer::Report(
+          "INFO : AllocSite is not valid, will not add it to Fault Set.\n");
       return;
     }
 
@@ -148,7 +148,7 @@ public:
     fault_set.insert(alloc);
   }
 };
-} // namespace mpk
+} // namespace __mpk_untrusted
 extern "C" {
 __attribute__((visibility("default"))) void
 allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID);

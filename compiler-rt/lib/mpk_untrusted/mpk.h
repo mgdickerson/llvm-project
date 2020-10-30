@@ -37,11 +37,11 @@ namespace __mpk_untrusted {
 
 #define HAS_MPK 1
 
-#define PKEY_ENABLE_ACCESS     0x0
-#define PKEY_DISABLE_ACCESS    0x1
-#define PKEY_DISABLE_WRITE     0x2
+#define PKEY_ENABLE_ACCESS 0x0
+#define PKEY_DISABLE_ACCESS 0x1
+#define PKEY_DISABLE_WRITE 0x2
 
-#define INVALID_PKEY           0x16
+#define INVALID_PKEY 0x16
 
 /**
  * Wrapper for RDPKRU instruction
