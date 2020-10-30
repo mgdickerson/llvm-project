@@ -41,7 +41,7 @@ public:
     return (ptr <= ptrCmp) && (ptrCmp < (ptr + size));
   }
 
-  int64_t id() { return uniqueID; }
+  int64_t id() const { return uniqueID; }
 
   rust_ptr getPtr() { return ptr; }
 
@@ -50,6 +50,10 @@ public:
   void addPkey(uint32_t faultPkey) { pkey = faultPkey; }
 
   uint32_t getPkey() { return pkey; }
+
+  bool operator<(const AllocSite& ac) const {
+    return uniqueID < ac.id();
+  }
 };
 
 class AllocSiteHandler {
