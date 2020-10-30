@@ -87,8 +87,7 @@ public:
         Type::getInt8PtrTy(M.getContext()),
         IntegerType::get(M.getContext(), 64),
         IntegerType::getInt64Ty(M.getContext()));
-    allocHook = M.getFunction("allocHook");
-    // allocHook = cast<Function>(allocHookFunc);
+    allocHook = cast<Function>(allocHookFunc);
     // set its linkage
     allocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
@@ -149,7 +148,7 @@ public:
     Instruction *CSInst = CS->getInstruction();
     BasicBlock *BB = CS->getParent();
 
-    Instruction *newHookInst;
+    Instruction *newHookInst = nullptr;
     if (hookInst == allocHook) {
       newHookInst =
           CallInst::Create((Function *)hookInst,

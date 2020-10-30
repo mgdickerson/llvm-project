@@ -12,6 +12,11 @@ typedef int8_t *rust_ptr;
 
 namespace __mpk_untrusted {
 
+struct FaultingSite {
+  int64_t uniqueID;
+  int64_t pkey;
+};
+
 class AllocSite {
 private:
   rust_ptr ptr;
@@ -143,6 +148,10 @@ public:
     alloc.addPkey(pkey);
 
     fault_set.insert(alloc);
+  }
+
+  std::set<AllocSite> &faultingAllocs() {
+    return fault_set;
   }
 };
 } // namespace mpk
