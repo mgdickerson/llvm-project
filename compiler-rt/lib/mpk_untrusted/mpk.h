@@ -35,6 +35,13 @@ namespace __mpk_untrusted {
         #define si_pkey_offset		0x20
     #endif
 
+    #define HAS_MPK 1
+    
+    #define PKEY_ENABLE_ACCESS     0x0
+    #define PKEY_DISABLE_ACCESS    0x1
+    #define PKEY_DISABLE_WRITE     0x2
+
+    #define INVALID_PKEY           0x16
 
     /**
      * Wrapper for RDPKRU instruction
@@ -55,7 +62,7 @@ namespace __mpk_untrusted {
      * @param key The protection key to check
      * @return the protection bits for key
      */
-    int pkey_get(int key);
+    int pkey_get(unsigned int *pkru, int key);
 
     /**
      * Sets the protection bits for key in the PKRU register
@@ -64,7 +71,7 @@ namespace __mpk_untrusted {
      * @param rights the Read/Write bits to set
      * @return -1 error, 0 success
      */
-    int pkey_set(int key, unsigned int rights);
+    int pkey_set(unsigned int *pkru, int key, unsigned int rights);
 
     /***
      * Set the protection bits in the PTE for Addr, acording to pkey
