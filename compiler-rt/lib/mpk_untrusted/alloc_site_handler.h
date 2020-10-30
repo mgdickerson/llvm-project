@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include "mpk_common.h"
 
 typedef int8_t *rust_ptr;
@@ -14,15 +15,19 @@ private:
   rust_ptr ptr;
   int64_t size;
   int64_t uniqueID;
+  uint32_t pkey;
   AllocSite() {
     ptr = nullptr;
     size = -1;
     uniqueID = -1;
+    // As pkey currently only has 16 potential keys, 
+    // 16 should indicate an invalid key.
+    pkey = 16;
   }
 
 public:
   AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID)
-      : ptr{ptr}, size{size}, uniqueID{uniqueID} {
+      : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{0} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(uniqueID >= 0);
@@ -36,9 +41,19 @@ public:
     return (ptr <= ptrCmp) && (ptrCmp < (ptr + size));
   }
 
-  int64_t id() { return uniqueID; }
+  int64_t id() const { return uniqueID; }
+
+  rust_ptr getPtr() { return ptr; }
 
   bool isValid() { return (ptr != nullptr) && (size > 0) && (uniqueID >= 0); }
+
+  void addPkey(uint32_t faultPkey) { pkey = faultPkey; }
+
+  uint32_t getPkey() { return pkey; }
+
+  bool operator<(const AllocSite& ac) const {
+    return uniqueID < ac.id();
+  }
 };
 
 class AllocSiteHandler {
@@ -47,11 +62,11 @@ private:
   static std::shared_ptr<AllocSiteHandler> handle;
   // Mapping from memory location pointer to AllocationSite
   std::map<rust_ptr, AllocSite> allocation_map;
+  // Set of faulting AllocationSites
+  std::set<AllocSite> fault_set;
+  // Thread safety mutex
   std::mutex mx;
-  AllocSiteHandler() {
-    std::map<rust_ptr, AllocSite> allocation_map;
-    std::mutex mx;
-  }
+  AllocSiteHandler() = default;
 
 public:
   ~AllocSiteHandler() {}
@@ -89,7 +104,7 @@ public:
     const std::lock_guard<std::mutex> lock(mx);
 
     if (allocation_map.empty()) {
-      __sanitizer::Report("INFO : Map is empty, returning error.");
+      __sanitizer::Report("INFO : Map is empty, returning error.\n");
       return AllocSite::error();
     }
 
@@ -118,8 +133,22 @@ public:
       }
     }
 
-    __sanitizer::Report("INFO : Returning AllocSite::error()");
+    __sanitizer::Report("INFO : Returning AllocSite::error()\n");
     return AllocSite::error();
+  }
+
+  void addFaultAlloc(rust_ptr ptr, uint32_t pkey) {
+    auto alloc = getAllocSite(ptr);
+    __sanitizer::Report("INFO : Getting AllocSite : id(%d), ptr(%p)\n", alloc.id(), alloc.getPtr());
+
+    if (!alloc.isValid()) {
+      __sanitizer::Report("INFO : AllocSite is not valid, will not add it to Fault Set.\n");
+      return;
+    }
+
+    alloc.addPkey(pkey);
+
+    fault_set.insert(alloc);
   }
 };
 

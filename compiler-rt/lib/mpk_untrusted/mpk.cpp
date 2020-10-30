@@ -59,7 +59,7 @@ namespace __mpk_untrusted {
     }
 
     /*return the set bits of pkru for the input key */
-    int pkey_get(int key)
+    int pkey_get(unsigned int *pkru, int key)
     {
 #if HAS_MPK
         if(key < 0 || key > 15)
@@ -67,15 +67,15 @@ namespace __mpk_untrusted {
             errno = EINVAL;
             return -1;
         }
-        unsigned int pkru = pkey_read();
-        return (pkru >> (2 * key)) & 3;
+        // unsigned int pkru = pkey_read();
+        return (*pkru >> (2 * key)) & 3;
 #else
         return 0;
 #endif
     }
 
     /* set the bits in pkru for key using rights */
-    int pkey_set(int key, unsigned int rights)
+    int pkey_set(unsigned int *pkru, int key, unsigned int rights)
     {
 #if HAS_MPK
         if(key < 0 || key > 15 || rights > 3)
@@ -84,9 +84,10 @@ namespace __mpk_untrusted {
             return -1;
         }
         unsigned int mask = 3 << (2 * key);
-        unsigned int pkru = pkey_read();
-        pkru              = (pkru & ~mask) | (rights << (2 * key));
-        pkey_write(pkru);
+        // unsigned int pkru = pkey_read();
+        *pkru              = (*pkru & ~mask) | (rights << (2 * key));
+        return 0;
+        // pkey_write(pkru);
 #endif
         return 0;
     }
@@ -138,7 +139,7 @@ namespace __mpk_untrusted {
         unsigned int ecx;
         unsigned int edx;
         int xstate_offset;
-        int xstate_size;
+        int xstate_size = 0;
         unsigned long XSTATE_CPUID = 0xd;
         int leaf;
         /* assume that XSTATE_PKRU is set in XCR0 */
