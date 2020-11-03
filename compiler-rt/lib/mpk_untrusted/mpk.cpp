@@ -27,7 +27,6 @@
 // glibc-2.27
 
 #include "mpk.h"
-#include "sanitizer_common/sanitizer_common.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -36,6 +35,15 @@
 #include <unistd.h>
 
 namespace __mpk_untrusted {
+/* Return a pointer to the PKRU register. */
+__uint32_t *pkru_ptr(void *arg) {
+  ucontext_t *uctxt = (ucontext_t *)arg;
+  fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
+  char *fpregs = (char *)fpregset;
+  int pkru_offset = __mpk_untrusted::pkru_xstate_offset();
+  return (__uint32_t *)(&fpregs[pkru_offset]);
+}
+
 /* Return the value of the PKRU register.  */
 inline unsigned int pkey_read() {
 #if HAS_MPK
@@ -58,9 +66,7 @@ inline void pkey_write(unsigned int pkru) {
 #endif
 }
 
-    /*return the set bits of pkru for the input key */
-    int pkey_get(unsigned int *pkru, int key)
-    {
+int pkey_get(__uint32_t *pkru, int key) {
 #if HAS_MPK
         if(key < 0 || key > 15)
         {
@@ -74,9 +80,8 @@ inline void pkey_write(unsigned int pkru) {
 #endif
 }
 
-    /* set the bits in pkru for key using rights */
-    int pkey_set(unsigned int *pkru, int key, unsigned int rights)
-    {
+/* set the bits in pkru for key using rights */
+int pkey_set(__uint32_t *pkru, int key, unsigned int rights) {
 #if HAS_MPK
         if(key < 0 || key > 15 || rights > 3)
         {

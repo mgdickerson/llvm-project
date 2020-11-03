@@ -22,6 +22,16 @@ static void mpk_untrusted_constructor() {
   sa.sa_sigaction = segMPKHandle;
   sigaction(SIGSEGV, &sa, &sa_old);
 
+  #if SINGLE_STEP
+    // If we are single stepping, we add an additional signal handler.
+    static struct sigaction sa_trap;
+
+    sa_trap.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa_trap.sa_mask);
+    sa_trap.sa_sigaction = stepMPKHandle;
+    sigaction(SIGTRAP, &sa_trap, NULL);
+  #endif
+
   // Add final action flushAllocs()
   std::atexit(__mpk_untrusted::flushAllocs);
 }

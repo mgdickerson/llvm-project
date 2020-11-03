@@ -5,9 +5,8 @@ extern "C" {
 
 __attribute__((visibility("default"))) static void mpk_untrusted_constructor();
 
-__attribute__((visibility("default"))) static void __attribute__((constructor))
+__attribute__((visibility("default"))) static void __attribute__((constructor)) mpk_untrusted();
 
-mpk_untrusted();
 }
 
 #endif

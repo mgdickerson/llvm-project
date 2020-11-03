@@ -27,6 +27,7 @@
 #define ALLOCATOR_MPK_H
 
 #include <cstddef>
+#include "mpk_common.h"
 
 namespace __mpk_untrusted {
 #ifdef __i386__
@@ -42,6 +43,11 @@ namespace __mpk_untrusted {
 #define PKEY_DISABLE_WRITE     0x2
 
 #define INVALID_PKEY           0x16
+
+/**
+ * Wrapper for getting PKRU pointer from ucontext.
+ */
+__uint32_t *pkru_ptr(void *arg);
 
 /**
  * Wrapper for RDPKRU instruction
@@ -62,7 +68,7 @@ void pkey_write(unsigned int pkru);
  * @param key The protection key to check
  * @return the protection bits for key
  */
-int pkey_get(unsigned int *pkru, int key);
+int pkey_get(__uint32_t *pkru, int key);
 
 /**
  * Sets the protection bits for key in the PKRU register
@@ -71,7 +77,7 @@ int pkey_get(unsigned int *pkru, int key);
  * @param rights the Read/Write bits to set
  * @return -1 error, 0 success
  */
-int pkey_set(unsigned int *pkru, int key, unsigned int rights);
+int pkey_set(__uint32_t *pkru, int key, unsigned int rights);
 
 /***
  * Set the protection bits in the PTE for Addr, acording to pkey

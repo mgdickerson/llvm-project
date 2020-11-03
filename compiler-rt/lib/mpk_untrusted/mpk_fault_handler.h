@@ -1,8 +1,9 @@
 #ifndef MPKSEGFAULTHANDLER_H
 #define MPKSEGFAULTHANDLER_H
 
-#include <csignal>
+#include "mpk_common.h"
 
-extern void segMPKHandle(int signal, siginfo_t *si, void *arg);
+extern void segMPKHandle(int sig, siginfo_t *si, void *arg);
+extern void stepMPKHandle(int sig, siginfo_t *si, void *arg);
 
 #endif

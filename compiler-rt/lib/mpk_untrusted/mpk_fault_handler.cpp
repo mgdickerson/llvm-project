@@ -1,12 +1,19 @@
 #include "mpk_fault_handler.h"
 #include "alloc_site_handler.h"
 #include "mpk.h"
-#include "mpk_common.h"
+
+#include <sys/mman.h>
+
+// Set to whatever the default page size will be for page based MPK.
+#define PAGE_SIZE 4096
+
+// Trap Flag
+#define TF 0x100
 
 uint32_t last_pkey = INVALID_PKEY;
 unsigned int last_access_rights = PKEY_DISABLE_ACCESS;
 
-void disableMPK(int signum, siginfo_t *si, void *arg);
+void disableMPK(siginfo_t *si, void *arg);
 
 void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   if (si->si_code != SEGV_PKUERR) {
@@ -34,41 +41,58 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
 
   // Logic for segfault handling separated out for
   // easier switching between implementation strategies.
-  disableMPK(sig, si, arg);
+  disableMPK(si, arg);
 }
 
-/// Get the PKRU pointer from ucontext
-uint32_t *get_pkru_pointer(void *arg) {
-  ucontext_t *uctxt = (ucontext_t *)arg;
-  fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
-  char *fpregs = (char *)fpregset;
-  int pkru_offset = __mpk_untrusted::pkru_xstate_offset();
-  return (uint32_t *)(&fpregs[pkru_offset]);
+void disablePageMPK(siginfo_t *si, void *arg) {
+  // TODO : Not sure if this is the correct way to get the page, need to double check.
+  void *page_addr = (void *)(PAGE_SIZE * ((uintptr_t)si->si_addr / PAGE_SIZE));
+
+  __sanitizer::Report("Disabling MPK protection for page(%p).", page_addr);
+  
+  // Setting pkey to -1 applies the default protection key, which should be 0.
+  __mpk_untrusted::pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, -1);
 }
 
 void disableThreadMPK(void *arg, uint32_t pkey) {
-  auto pkru_ptr = get_pkru_pointer(arg);
+  uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
 
   last_pkey = pkey;
   last_access_rights = __mpk_untrusted::pkey_get(pkru_ptr, pkey);
   __mpk_untrusted::pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
-  
-  // *(uint64_t *)pkru_ptr = 0x00000000;
-  __sanitizer::Report("INFO : Pkey has been set to ENABLE_ACCESS to enable instruction access.\n");
+
+  __sanitizer::Report("INFO : Pkey(%d) has been set to ENABLE_ACCESS to enable instruction access.\n", pkey);
 }
 
 void enableThreadMPK(void *arg, uint32_t pkey) {
-  auto pkru_ptr = get_pkru_pointer(arg);
+  uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
   __mpk_untrusted::pkey_set(pkru_ptr, last_pkey, last_access_rights);
+  __sanitizer::Report("INFO : Pkey(%d) has been reset to %d.\n", last_pkey, last_access_rights);
   last_pkey = INVALID_PKEY;
   last_access_rights = PKEY_ENABLE_ACCESS;
-  return;
 }
 
-void disableMPK(int signum, siginfo_t *si, void *arg) {
+void disableMPK(siginfo_t *si, void *arg) {
   #if PAGE_MPK
-    // TODO
+    disablePageMPK(si, arg);
   #else
-    disableThreadMPK(arg, si->si_pkey);
+    #if SINGLE_STEP
+      disableThreadMPK(arg, si->si_pkey);
+
+      // Set trap flag on next instruction
+      ucontext_t *uctxt = (ucontext_t *)arg;
+      uctxt->uc_mcontext.gregs[REG_EFL] |= TF;
+    #else
+      // TODO : emulateMPK();
+    #endif
   #endif
+}
+
+void stepMPKHandle(int sig, siginfo_t *si, void *arg) {
+  __sanitizer::Report("Reached signal handler after single instruction step.\n");
+  enableThreadMPK(arg, si->si_pkey);
+
+  // Disable trap flag on next instruction
+  ucontext_t *uctxt = (ucontext_t *)arg;
+  uctxt->uc_mcontext.gregs[REG_EFL] &= ~TF;
 }
