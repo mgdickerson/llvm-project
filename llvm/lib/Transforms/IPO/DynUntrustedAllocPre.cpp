@@ -109,11 +109,65 @@ public:
     deallocHook = cast<Function>(deallocHookFunc);
     deallocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
-    hookAllocFunctions(M);
+    // hookAllocFunctions(M);
+    hookFunctions(M);
 
     // Remove inline attribute from functions for inlining.
     removeInlineAttr(M);
     return true;
+  }
+
+  Instruction *getHookInst(Module &M, CallSite *CS) {
+    Function *F = CS->getCalledFunction();
+    if (!F)
+      return nullptr;
+
+    if (F == M.getFunction("__rust_alloc") || F == M.getFunction("__rust_alloc_zeroed")) {
+      return CallInst::Create((Function *)allocHook,
+        {CS->getInstruction(), CS->getArgument(0), IDG.getDummyID(M)});
+    } else if (F == M.getFunction("__rust_realloc")) {
+      return CallInst::Create(
+          (Function *)reallocHook, {CS->getInstruction(), CS->getArgument(3), CS->getArgument(0),
+            CS->getArgument(1), IDG.getDummyID(M)});
+    } else if (F == M.getFunction("__rust_dealloc")) {
+      return CallInst::Create(
+          (Function *)deallocHook,
+          {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)});
+    } else {
+      return nullptr;
+    }
+  }
+
+  void hookFunctions(Module &M) {
+    for (Function &FRef : M) {
+      Function *F = &FRef;
+      if (!F)
+        continue;
+      
+      if (F->isDeclaration())
+        continue;
+
+      ReversePostOrderTraversal<Function *> RPOT(F);
+
+      for (BasicBlock *BB : RPOT) {
+        for (Instruction &I : *BB) {
+          CallSite CS(&I);
+          if (!CS) {
+            continue;
+          }
+
+          Instruction *newHook = getHookInst(M, &CS);
+          // Check to make sure new hook is not void
+          if (!newHook)
+            continue;
+
+          BasicBlock::iterator bbIter((Instruction *)CS.getInstruction());
+          bbIter++;
+          BB->getInstList().insert(bbIter, newHook);
+        }
+      }
+
+    }
   }
 
   /// Iterate over all functions we are looking for, and instrument them with
@@ -148,7 +202,7 @@ public:
     Instruction *CSInst = CS->getInstruction();
     BasicBlock *BB = CS->getParent();
 
-    Instruction *newHookInst = nullptr;
+    Instruction *newHookInst;
     if (hookInst == allocHook) {
       newHookInst =
           CallInst::Create((Function *)hookInst,
@@ -162,6 +216,7 @@ public:
           (Function *)hookInst,
           {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)});
     } else {
+      newHookInst = nullptr;
       LLVM_DEBUG(errs() << "Attempted to add hook to non-hook function!\n");
     }
     // Insert hook call after call site instruction
