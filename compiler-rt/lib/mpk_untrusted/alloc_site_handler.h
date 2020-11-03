@@ -3,6 +3,7 @@
 
 #include "sanitizer_common/sanitizer_common.h"
 
+#include <set>
 #include <cassert>
 #include <map>
 #include <memory>
@@ -22,6 +23,7 @@ private:
   rust_ptr ptr;
   int64_t size;
   int64_t uniqueID;
+  uint32_t pkey;
   AllocSite() : ptr(nullptr), size(-1), uniqueID(-1) {}
 
 public:

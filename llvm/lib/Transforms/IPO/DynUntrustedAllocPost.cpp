@@ -33,7 +33,11 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/JSON.h"
 
+#include <utility>
+#include <map>
+#include <set>
 #include <string>
 
 #define DEBUG_TYPE "dyn-untrusted"
@@ -59,6 +63,11 @@ public:
 
 static IDGenerator IDG;
 
+struct FaultingSite {
+  uint64_t uniqueID;
+  int64_t pkey;
+};
+
 class DynUntrustedAllocPost : public ModulePass {
 public:
   static char ID;
@@ -73,8 +82,27 @@ public:
     // Assign a unique ID in a deterministic pattern to ensure UniqueID is
     // consistent between runs.
     assignUniqueIDs(M);
+    fixFaultedAllocations(M, getFaultingAllocList());
 
     return true;
+  }
+
+  bool fromJSON(const llvm::json::Value Alloc, FaultingSite &F) {
+    llvm::json::ObjectMapper O(Alloc);
+    int64_t temp;
+    bool temp_result = O.map("id", temp);
+    if (temp < 0) {
+      return false;
+    }
+    F.uniqueID = static_cast<uint64_t>(temp);
+    return O && temp_result && O.map("pkey", F.pkey);
+  }
+
+  std::set<FaultingSite> getFaultingAllocList() {
+    // TODO : Somehow we need to get the path to the .json file containing faults.
+    std::set<FaultingSite> fault_set;
+
+    return fault_set;
   }
 
   int getArgIndexForPatch(Function *hook) {
@@ -145,11 +173,43 @@ public:
           if (index == -1) {
             continue;
           }
-          CS.setArgument(index, IDG.getConstID(M));
+
+          BasicBlock::iterator iter(CS.getInstruction());
+          auto prev_inst = BB->getInstList().getPrevNode(*CS.getInstruction());
+          auto id = IDG.getConstID(M);
+
+          CS.setArgument(index, id);
           LLVM_DEBUG(errs() << "modified callsite:\n");
           LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
+
+          if (!prev_inst)
+            continue;
+
+          CallSite CSPrev(prev_inst);
+          if (!CSPrev)
+            continue;
+
+          LLVM_DEBUG(errs() << "Adding: " << CSPrev.getCalledFunction()->getName().data() << " callsite for allocID: " << id->getZExtValue() << "\n");
+          alloc_map.insert(std::pair<uint64_t, Instruction *>(id->getZExtValue(), prev_inst));
         }
       }
+    }
+  }
+
+  void fixFaultedAllocations(Module &M, std::set<FaultingSite> FS) {
+    if (FS.empty()) {
+      return;
+    }
+
+    for (auto fsite : FS) { 
+      auto map_iter = alloc_map.find(fsite.uniqueID);
+      if (map_iter == alloc_map.end()) {
+        LLVM_DEBUG(errs() << "Cannot find unique allocation id: " << fsite.uniqueID << "\n");
+        continue;
+      }
+
+      Instruction *I = map_iter->second;
+      // TODO : We need to alter this instruction somehow.
     }
   }
 
@@ -158,6 +218,7 @@ public:
   }
 
 private:
+  std::map<uint64_t, Instruction *> alloc_map;
 };
 
 char DynUntrustedAllocPost::ID = 0;
