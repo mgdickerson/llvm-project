@@ -124,15 +124,11 @@ public:
   }
 
   void hookFunctions(Module &M) {
-    for (Function &FRef : M) {
-      Function *F = &FRef;
-      if (!F)
-        continue;
-      
-      if (F->isDeclaration())
+    for (Function &F : M) {
+      if (F.isDeclaration())
         continue;
 
-      ReversePostOrderTraversal<Function *> RPOT(F);
+      ReversePostOrderTraversal<Function *> RPOT(&F);
 
       for (BasicBlock *BB : RPOT) {
         for (Instruction &I : *BB) {
