@@ -41,23 +41,9 @@
 using namespace llvm;
 
 namespace {
-class IDGenerator {
-  unsigned int id;
-
-public:
-  IDGenerator() : id(0) {}
-
-  ConstantInt *getConstID(Module &M) {
-    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()),
-                                  id++);
-  }
-
-  ConstantInt *getDummyID(Module &M) {
-    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
-  }
-};
-
-static IDGenerator IDG;
+ConstantInt *getDummyID(Module &M) {
+  return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
+}
 
 class DynUntrustedAllocPre : public ModulePass {
 public:
@@ -109,7 +95,6 @@ public:
     deallocHook = cast<Function>(deallocHookFunc);
     deallocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
-    // hookAllocFunctions(M);
     hookFunctions(M);
 
     // Remove inline attribute from functions for inlining.
@@ -124,15 +109,15 @@ public:
 
     if (F == M.getFunction("__rust_alloc") || F == M.getFunction("__rust_alloc_zeroed")) {
       return CallInst::Create((Function *)allocHook,
-        {CS->getInstruction(), CS->getArgument(0), IDG.getDummyID(M)});
+        {CS->getInstruction(), CS->getArgument(0), getDummyID(M)});
     } else if (F == M.getFunction("__rust_realloc")) {
       return CallInst::Create(
           (Function *)reallocHook, {CS->getInstruction(), CS->getArgument(3), CS->getArgument(0),
-            CS->getArgument(1), IDG.getDummyID(M)});
+            CS->getArgument(1), getDummyID(M)});
     } else if (F == M.getFunction("__rust_dealloc")) {
       return CallInst::Create(
           (Function *)deallocHook,
-          {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)});
+          {CS->getArgument(0), CS->getArgument(1), getDummyID(M)});
     } else {
       return nullptr;
     }
@@ -168,61 +153,6 @@ public:
       }
 
     }
-  }
-
-  /// Iterate over all functions we are looking for, and instrument them with
-  /// hooks accordingly
-  void hookAllocFunctions(Module &M) {
-    hookFunction(M, "__rust_alloc", allocHook);
-    hookFunction(M, "__rust_alloc_zeroed", allocHook);
-    hookFunction(M, "__rust_realloc", reallocHook);
-    hookFunction(M, "__rust_dealloc", deallocHook);
-  }
-
-  void hookFunction(Module &M, std::string Name, Function *Hook) {
-    Function *F = M.getFunction(Name);
-    if (!F)
-      return;
-
-    for (auto caller : F->users()) {
-      CallSite CS(caller);
-      if (!CS) {
-        continue;
-      }
-
-      addFunctionHooks(M, &CS, Hook);
-    }
-  }
-
-  /// Add function hook after call site instruction. Initially place a dummy
-  /// UUID, to be replaced in structured ascent later. Additional information
-  /// required for hook: Size of allocation, and return address.
-  void addFunctionHooks(Module &M, CallSite *CS, Function *hookInst) {
-    // Get CallSite instruction and containing BasicBlock
-    Instruction *CSInst = CS->getInstruction();
-    BasicBlock *BB = CS->getParent();
-
-    Instruction *newHookInst;
-    if (hookInst == allocHook) {
-      newHookInst =
-          CallInst::Create((Function *)hookInst,
-                           {CSInst, CS->getArgument(0), IDG.getDummyID(M)});
-    } else if (hookInst == reallocHook) {
-      newHookInst = CallInst::Create(
-          (Function *)hookInst, {CSInst, CS->getArgument(3), CS->getArgument(0),
-                                 CS->getArgument(1), IDG.getDummyID(M)});
-    } else if (hookInst == deallocHook) {
-      newHookInst = CallInst::Create(
-          (Function *)hookInst,
-          {CS->getArgument(0), CS->getArgument(1), IDG.getDummyID(M)});
-    } else {
-      newHookInst = nullptr;
-      LLVM_DEBUG(errs() << "Attempted to add hook to non-hook function!\n");
-    }
-    // Insert hook call after call site instruction
-    BasicBlock::iterator bbIter((Instruction *)CSInst);
-    bbIter++;
-    BB->getInstList().insert(bbIter, (Instruction *)newHookInst);
   }
 
   /// Iterate all Functions of Module M, remove NoInline attribute from

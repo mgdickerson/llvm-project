@@ -1,4 +1,4 @@
-//===-- tsan_unit_test_main.cc --------------------------------------------===//
+//===-- mpk_untrusted_unit_test_main.cpp -----------------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is a part of ThreadSanitizer (TSan), a race detector.
+// This file is a part of MPK Untrusted.
 //
 //===----------------------------------------------------------------------===//
 #include "gtest/gtest.h"

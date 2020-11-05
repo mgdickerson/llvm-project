@@ -30,12 +30,6 @@
 #include "mpk_common.h"
 
 namespace __mpk_untrusted {
-#ifdef __i386__
-#define si_pkey_offset 0x14
-#else
-#define si_pkey_offset 0x20
-#endif
-
 #define HAS_MPK 1
 
 #define PKEY_ENABLE_ACCESS     0x0
@@ -47,24 +41,12 @@ namespace __mpk_untrusted {
 /**
  * Wrapper for getting PKRU pointer from ucontext.
  */
-__uint32_t *pkru_ptr(void *arg);
-
-/**
- * Wrapper for RDPKRU instruction
- * @return value of pkru register
- *
- */
-unsigned int pkey_read();
-
-/**
- * Wrapper for WRPKRU instruction
- * @param pkru new PKRU value
- */
-void pkey_write(unsigned int pkru);
+__uint32_t *pkru_ptr(void *ctxt);
 
 /**
  * Gets the protection bits for key from PKRU register
  *
+ * @param pkru The PKRU register from ucontext
  * @param key The protection key to check
  * @return the protection bits for key
  */
@@ -73,34 +55,12 @@ int pkey_get(__uint32_t *pkru, int key);
 /**
  * Sets the protection bits for key in the PKRU register
  *
+ * @param pkru The PKRU register from ucontext
  * @param pkey  the protection key to set the bits for
  * @param rights the Read/Write bits to set
  * @return -1 error, 0 success
  */
 int pkey_set(__uint32_t *pkru, int key, unsigned int rights);
-
-/***
- * Set the protection bits in the PTE for Addr, acording to pkey
- * @param addr the address to protect w/ pkey
- * @param len  the size of the region to set mpk protection
- * @param prot The normal OS page permissions
- * @param pkey The mpk protection key to assign
- * @return 0 success, -1 error
- */
-int pkey_mprotect(void *addr, size_t len, int prot, int pkey);
-
-/**
- * Allocate a new protection key
- * @return the new protection key on success, -1 on failure
- */
-int pkey_alloc();
-
-/**
- * Release the protection key
- * @param pkey the protection key to release
- * @return 0 on success, -1 on failure
- */
-int pkey_free(unsigned long pkey);
 
 #define XSTATE_PKRU_BIT (9)
 #define XSTATE_PKRU 0x200

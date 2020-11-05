@@ -36,34 +36,12 @@
 
 namespace __mpk_untrusted {
 /* Return a pointer to the PKRU register. */
-__uint32_t *pkru_ptr(void *arg) {
-  ucontext_t *uctxt = (ucontext_t *)arg;
+__uint32_t *pkru_ptr(void *ctxt) {
+  ucontext_t *uctxt = (ucontext_t *)ctxt;
   fpregset_t fpregset = uctxt->uc_mcontext.fpregs;
   char *fpregs = (char *)fpregset;
   int pkru_offset = __mpk_untrusted::pkru_xstate_offset();
   return (__uint32_t *)(&fpregs[pkru_offset]);
-}
-
-/* Return the value of the PKRU register.  */
-inline unsigned int pkey_read() {
-#if HAS_MPK
-  unsigned int result;
-  __asm__ volatile(".byte 0x0f, 0x01, 0xee" : "=a"(result) : "c"(0) : "rdx");
-  return result;
-#else
-  return 0;
-#endif
-}
-
-/* Overwrite the PKRU register with VALUE.  */
-inline void pkey_write(unsigned int pkru) {
-#if HAS_MPK
-  unsigned int eax = pkru;
-  unsigned int ecx = 0;
-  unsigned int edx = 0;
-
-  asm volatile(".byte 0x0f,0x01,0xef\n\t" : : "a"(eax), "c"(ecx), "d"(edx));
-#endif
 }
 
 int pkey_get(__uint32_t *pkru, int key) {
@@ -95,30 +73,6 @@ int pkey_set(__uint32_t *pkru, int key, unsigned int rights) {
         // pkey_write(pkru);
 #endif
   return 0;
-}
-
-int pkey_mprotect(void *addr, size_t len, int prot, int pkey) {
-#if HAS_MPK
-  return syscall(SYS_pkey_mprotect, addr, len, prot, pkey);
-#else
-  return syscall(SYS_mprotect, addr, len, prot);
-#endif
-}
-
-int pkey_alloc() {
-#if HAS_MPK
-  return syscall(SYS_pkey_alloc, 0, 0);
-#else
-  return 0;
-#endif
-}
-
-int pkey_free(unsigned long pkey) {
-#if HAS_MPK
-  return syscall(SYS_pkey_free, pkey);
-#else
-  return 0;
-#endif
 }
 
 static inline void __cpuid(unsigned int *eax, unsigned int *ebx,

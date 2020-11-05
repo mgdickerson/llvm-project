@@ -1,6 +1,4 @@
-//===- Transforms/UntrustedAlloc.h - UntrustedAlloc passes
-//--------------------*- C++
-//-*-===//
+//===- Transforms/UntrustedAlloc.h - UntrustedAlloc passes --------- C++ --===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -10,9 +8,12 @@
 //===----------------------------------------------------------------------===//
 //
 // This file defines the constructor for the Dynamic Untrusted Allocation
-// passes.
+// Post passes.
 //
 //===----------------------------------------------------------------------===//
+
+#ifndef LLVM_TRANSFORMS_DYNAMIC_MPK_UNTRUSTED_POST_H
+#define LLVM_TRANSFORMS_DYNAMIC_MPK_UNTRUSTED_POST_H
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
@@ -22,6 +23,10 @@
 namespace llvm {
 class ModulePass;
 
+/// Pass to patch all hook instructions after the inliner has run with 
+/// UniqueIDs. When supplied with a patch list (in the format of JSON file)
+/// from previous runs, it will also patch allocation sites to be 
+/// untrusted.
 class DynUntrustedAllocPostPass
     : public PassInfoMixin<DynUntrustedAllocPostPass> {
 public:
@@ -33,3 +38,5 @@ ModulePass *createDynUntrustedAllocPostPass();
 
 void initializeDynUntrustedAllocPostPass(PassRegistry &Registry);
 } // namespace llvm
+
+#endif // LLVM_TRANSFORMS_DYNAMIC_MPK_UNTRUSTED_POST_H

@@ -51,7 +51,7 @@ void disablePageMPK(siginfo_t *si, void *arg) {
   __sanitizer::Report("Disabling MPK protection for page(%p).", page_addr);
   
   // Setting pkey to -1 applies the default protection key, which should be 0.
-  __mpk_untrusted::pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, -1);
+  pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, -1);
 }
 
 void disableThreadMPK(void *arg, uint32_t pkey) {

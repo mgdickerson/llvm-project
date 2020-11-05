@@ -37,9 +37,4 @@ llvm::json::Value toJSON(AllocSite as) {
     };
 }
 
-bool fromJSON(const llvm::json::Value Alloc, FaultingSite &F) {
-    llvm::json::ObjectMapper O(Alloc);
-    return O && O.map("id", F.uniqueID) && O.map("pkey", F.pkey);
-}
-
 } //__mpk_untrusted

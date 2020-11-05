@@ -13,18 +13,13 @@ typedef int8_t *rust_ptr;
 
 namespace __mpk_untrusted {
 
-struct FaultingSite {
-  int64_t uniqueID;
-  int64_t pkey;
-};
-
 class AllocSite {
 private:
   rust_ptr ptr;
   int64_t size;
   int64_t uniqueID;
   uint32_t pkey;
-  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1) {}
+  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
 
 public:
   AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID)

@@ -45,8 +45,15 @@
 using namespace llvm;
 
 namespace {
+/// A mapping between hook function and the position of the UniqueID argument.
+const static std::map<std::string, int> patchArgIndexMap = {
+  {"allocHook", 2},
+  {"reallocHook", 4}, 
+  {"deallocHook", 2}
+};
+
 class IDGenerator {
-  unsigned int id;
+  uint64_t id;
 
 public:
   IDGenerator() : id(0) {}
@@ -55,17 +62,13 @@ public:
     return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()),
                                   id++);
   }
-
-  ConstantInt *getDummyID(Module &M) {
-    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
-  }
 };
 
 static IDGenerator IDG;
 
 struct FaultingSite {
   uint64_t uniqueID;
-  int64_t pkey;
+  uint32_t pkey;
 };
 
 class DynUntrustedAllocPost : public ModulePass {
@@ -89,13 +92,21 @@ public:
 
   bool fromJSON(const llvm::json::Value Alloc, FaultingSite &F) {
     llvm::json::ObjectMapper O(Alloc);
-    int64_t temp;
-    bool temp_result = O.map("id", temp);
-    if (temp < 0) {
+    
+    int64_t temp_id;
+    bool temp_id_result = O.map("id", temp_id);
+    if (temp_id < 0)
       return false;
-    }
-    F.uniqueID = static_cast<uint64_t>(temp);
-    return O && temp_result && O.map("pkey", F.pkey);
+    
+    int64_t temp_pkey;
+    bool temp_pkey_result = O.map("pkey", temp_pkey);
+    if (temp_pkey < 0)
+      return false;
+
+    F.uniqueID = static_cast<uint64_t>(temp_id);
+    F.pkey = static_cast<uint32_t>(temp_pkey);
+
+    return O && temp_id_result && temp_pkey_result;
   }
 
   std::set<FaultingSite> getFaultingAllocList() {
@@ -105,57 +116,22 @@ public:
     return fault_set;
   }
 
-  int getArgIndexForPatch(Function *hook) {
-    assert(hook && "Nullptr: Invalid function to hook");
-    auto hookFns = getHookFuncs(*hook->getParent());
-    if (hook == hookFns[0]) {
-      return 2;
-      // allocHook
-    } else if (hook == hookFns[1]) {
-      return 4;
-      // mallocHook
-    } else if (hook == hookFns[2]) {
-      // deallocHook
-      return 2;
-    }
-    return -1;
-  }
-
-  SmallVector<Function *, 3> getHookFuncs(Module &M) {
-    std::string hookFuncNames[3] = {"allocHook", "reallocHook", "deallocHook"};
-    SmallVector<Function *, 3> hookFns;
-    for (auto hookName : hookFuncNames) {
-      Function *F = M.getFunction(hookName);
-      if (!F)
-        continue;
-
-      hookFns.push_back(F);
-    }
-    return hookFns;
-  }
-
   static bool funcSort(Function *F1, Function *F2) {
-    return F1->getName().data() > F2->getName().data();
+    return F1->getName().str() > F2->getName().str();
   }
 
   void assignUniqueIDs(Module &M) {
     std::vector<Function *> WorkList;
-    for (Function &FRef : M) {
-      Function *F = &FRef;
-      if (!F)
-        continue;
-
-      if (F->isDeclaration())
-        continue;
-
-      WorkList.push_back(F);
+    for (Function &F : M) {
+      if (!F.isDeclaration())
+        WorkList.push_back(&F);
     }
 
     std::sort(WorkList.begin(), WorkList.end(), funcSort);
 
     LLVM_DEBUG(errs() << "Search for modified functions!\n");
 
-    for (auto *F : llvm::reverse(WorkList)) {
+    for (Function *F : WorkList) {
       ReversePostOrderTraversal<Function *> RPOT(F);
 
       for (BasicBlock *BB : RPOT) {
@@ -169,10 +145,12 @@ public:
           if (!hook)
             continue;
 
-          auto index = getArgIndexForPatch(hook);
-          if (index == -1) {
+          // Get patch index from map.
+          auto index_iter = patchArgIndexMap.find(hook->getName().str());
+          if (index_iter == patchArgIndexMap.end())
             continue;
-          }
+
+          auto index = index_iter->second;
 
           BasicBlock::iterator iter(CS.getInstruction());
           auto prev_inst = BB->getInstList().getPrevNode(*CS.getInstruction());

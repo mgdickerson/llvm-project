@@ -65,10 +65,6 @@ TEST(SigHandler, SigTest) {
   sa_segv.sa_sigaction = segv_handler;
   ASSERT_NE(sigaction(SIGSEGV, &sa_segv, NULL), -1)
       << "Failed to register sigaction for SIGSEGV.\n";
-  // if (sigaction(SIGSEGV, &sa_segv, NULL) == -1) {
-  //     printf("Failed to register sigaction for SIGSEGV\n.");
-  //     return -1;
-  // }
 
   struct sigaction sa_trap;
 
@@ -77,28 +73,11 @@ TEST(SigHandler, SigTest) {
   sa_trap.sa_sigaction = trap_handler;
   ASSERT_NE(sigaction(SIGTRAP, &sa_trap, NULL), -1)
       << "Failed to register sigaction for SIGTRAP.\n";
-  // if (sigaction(SIGTRAP, &sa_trap, NULL) == -1) {
-  //     printf("Failed to register sigaction for SIGTRAP\n.");
-  //     return -1;
-  // }
 
   char *ptr = (char *)mmap(NULL, PAGE_SIZE, PROT_NONE,
                            MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
   ASSERT_NE(ptr, MAP_FAILED) << "mmap failed.\n";
-  // if (ptr == MAP_FAILED) {
-  //     printf("mmap failed\n");
-  //     return -1;
-  // }
-
-  //printf("ptr = %p\n", ptr);
   strncpy(ptr, "hello world!", 1024);
   EXPECT_STREQ(ptr, "hello world!");
 
-  //printf("*ptr = '%s'\n", ptr);
 }
-
-// TODO: refactor to use w/ GTEST
-// int main()
-// {
-
-// }

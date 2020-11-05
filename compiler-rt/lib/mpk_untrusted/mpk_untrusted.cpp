@@ -4,13 +4,9 @@
 #include "sanitizer_common/sanitizer_common.h"
 #include <cstring>
 
-/// Constructor will intercept allocation functions, initialize
-/// allocation_site_handler, and finally set up the segMPKHandle fault handler.
-static void mpk_untrusted_constructor() {
-  // AllocationSiteHandler will be instantiated on first required call, then
-  // accessed on each successive call from the runtime inserts, deletes, and
-  // getters.
-
+/// Constructor will set up the segMPKHandle fault handler, and additionally
+/// the stepMPKHandle when testing single stepping.
+static void __attribute__((constructor)) mpk_untrusted_constructor() {
   __sanitizer::Report("INFO : Initializing and replacing segFaultHandler.\n");
 
   // Set up our fault handler
@@ -32,11 +28,7 @@ static void mpk_untrusted_constructor() {
     sigaction(SIGTRAP, &sa_trap, NULL);
   #endif
 
-  // Add final action flushAllocs()
+  // Add final action flushAllocs() to export faulting allocations 
+  // to a JSON file.
   std::atexit(__mpk_untrusted::flushAllocs);
-}
-
-/// __attribute((constructor)) should allow this function to run before main.
-static void __attribute__((constructor)) mpk_untrusted() {
-  mpk_untrusted_constructor();
 }
