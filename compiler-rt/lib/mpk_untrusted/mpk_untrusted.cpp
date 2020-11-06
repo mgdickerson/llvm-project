@@ -2,6 +2,7 @@
 #include "mpk_fault_handler.h"
 #include "mpk_formatter.h"
 #include "sanitizer_common/sanitizer_common.h"
+
 #include <cstring>
 
 /// Constructor will set up the segMPKHandle fault handler, and additionally

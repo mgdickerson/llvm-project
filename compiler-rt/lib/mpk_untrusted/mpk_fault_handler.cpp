@@ -4,8 +4,7 @@
 
 #include <sys/mman.h>
 
-// Set to whatever the default page size will be for page based MPK.
-#define PAGE_SIZE 4096
+const int PAGE_SIZE = 4096;
 
 // Trap Flag
 #define TF 0x100
@@ -38,20 +37,15 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   __sanitizer::Report(
       "INFO : Got Allocation Site (%d) for address: %p with pkey: %d or %d.\n",
       handler->getAllocSite((rust_ptr)ptr).id(), ptr, pkey);
-
-  // Logic for segfault handling separated out for
-  // easier switching between implementation strategies.
   disableMPK(si, arg);
 }
 
 void disablePageMPK(siginfo_t *si, void *arg) {
-  // TODO : Not sure if this is the correct way to get the page, need to double check.
-  void *page_addr = (void *)(PAGE_SIZE * ((uintptr_t)si->si_addr / PAGE_SIZE));
+  void *page_addr = (void *)((uintptr_t)si->si_addr &~(PAGE_SIZE - 1));
 
   __sanitizer::Report("Disabling MPK protection for page(%p).", page_addr);
   
-  // Setting pkey to -1 applies the default protection key, which should be 0.
-  pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, -1);
+  pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, 0);
 }
 
 void disableThreadMPK(void *arg, uint32_t pkey) {

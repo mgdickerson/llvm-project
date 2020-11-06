@@ -10,8 +10,6 @@ add_custom_target(MPKUnitTests)
 set_target_properties(MPKUnitTests PROPERTIES
 	FOLDER "Compiler-rt Tests")
 
-message(STATUS "COMPILER_RT_SOURCE_DIR : ${COMPILER_RT_SOURCE_DIR}")
-
 set(MPK_UNITTEST_CFLAGS
 	${MPK_UNTRUSTED_CFLAGS}
 	${COMPILER_RT_UNITTEST_CFLAGS}
@@ -27,7 +25,6 @@ set(LINK_FLAGS
 	-lm)
 
 set(MPK_RTL_HEADERS)
-message(STATUS "MPK_RTL_HEADERS : ${MPK_RTL_HEADERS}")
 
 macro(add_mpk_unittest testname)
 	cmake_parse_arguments(TEST "" "" "SOURCES;HEADERS" ${ARGN})
@@ -47,59 +44,3 @@ macro(add_mpk_unittest testname)
 endmacro()
 
 add_subdirectory(sig)
-
-#set(PWD ${CMAKE_BINARY_DIR}/../compiler-rt/lib/mpk_untrusted/tests/)
-
-#set(MPK_UNITTEST_SOURCES
-#	${PWD}/sig/src/sig.c)
-#set(MPK_UNITTEST_HEADERS
-#	${PWD}/util/mpk_untrusted_test_config.h)
-
-#find_library (MPK_LIB NAMES libclang_rt.mpk_untrusted-x86_64.a ${CMAKE_BINARY_DIR})
-#message(STATUS "MPK_LIB PATH : ${MPK_LIB}")
-#message(STATUS "PWD : ${PWD}")
-
-#set(MPK_UNTRUSTED_SUPPORTED_ARCH ${X86_64})
-#set(MPK_UNTRUSTED_CFLAGS ${SANITIZER_COMMON_CFLAGS} ${COMPILER_RT_UNITTEST_CFLAGS} ${COMPILER_RT_GTEST_CFLAGS})
-#set(MPK_UNTRUSTED_LINK_FLAGS 
-#    ${SANITIZER_COMMON_LINK_FLAGS}
-#    -lstdc++
-#    -lm
-#    -lrt
-#    -ldl
-#    -lpthread
-#    -whole-archive
-#    -l${MPK_LIB}
-#    -no-whole-archive
-#    )
-
-#set(MPK_GTESTS)
-
-# Main MPK_Untrusted unit tests.
-#add_custom_target(MPKUnitTests)
-#set_target_properties(MPKUnitTests PROPERTIES FOLDER "MPK unit tests")
-
-#foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
-#    set(MPK_GTEST_OBJECTS)
-#    sanitizer_test_compile(
-#	MPK_GTEST_OBJECTS ${COMPILER_RT_GTEST_SOURCE} ${arch}
-#	KIND ""
-#	COMPILE_DEPS ${MPK_UNITTEST_HEADERS}
-#	DEPS gtest gtest_main
-#	CFLAGS ${MPK_UNTRUSTED_CFLAGS})
-#
-#    sanitizer_test_compile(
-#	MPK_OBJECTS ${MPK_UNITTEST_SOURCES} ${arch}
-#        KIND ""
-#        COMPILE_DEPS ${MPK_UNITTEST_HEADERS}
-#        DEPS gtest gtest_main
-#        CFLAGS ${MPK_UNTRUSTED_CFLAGS}
-#    )
-#
-#    set(MPK_BUILD_OBJECTS ${MPK_GTEST_OBJECTS} ${MPK_OBJECTS})
-#
-#    add_compiler_rt_test(MPKUnitTests "mpk-${arch}-tests" ${arch}
-#    OBJECTS ${MPK_BUILD_OBJECTS}
-#    DEPS ${MPK_GTEST_OBJECTS}
-#    LINK_FLAGS ${MPK_UNTRUSTED_LINK_FLAGS})
-#endforeach()

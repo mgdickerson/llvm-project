@@ -62,10 +62,6 @@ MPKUntrustedArgs::MPKUntrustedArgs(const ToolChain &TC, const ArgList &Args) {
 
     MPKUntrusted = true;
     MPKUntrustedRT = true;
-
-    // if (!Args.hasFlag(options::OPT_fmpk_untrusted_link_deps,
-    //                  options::OPT_fnompk_untrusted_link_deps, true))
-    //    MPKUntrustedRT = false;
   }
 }
 
