@@ -23,9 +23,9 @@
 namespace llvm {
 class ModulePass;
 
-/// Pass to patch all hook instructions after the inliner has run with 
+/// Pass to patch all hook instructions after the inliner has run with
 /// UniqueIDs. When supplied with a patch list (in the format of JSON file)
-/// from previous runs, it will also patch allocation sites to be 
+/// from previous runs, it will also patch allocation sites to be
 /// untrusted.
 class DynUntrustedAllocPostPass
     : public PassInfoMixin<DynUntrustedAllocPostPass> {

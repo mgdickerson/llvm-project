@@ -40,10 +40,10 @@ void linkSanitizerRuntimeDeps(const ToolChain &TC,
                               llvm::opt::ArgStringList &CmdArgs);
 
 bool addMPKUntrustedRuntime(const ToolChain &TC, const llvm::opt::ArgList &Args,
-                    llvm::opt::ArgStringList &CmdArgs);
+                            llvm::opt::ArgStringList &CmdArgs);
 
 void linkMPKUntrustedRuntimeDeps(const ToolChain &TC,
-                         llvm::opt::ArgStringList &CmdArgs);
+                                 llvm::opt::ArgStringList &CmdArgs);
 
 bool addXRayRuntime(const ToolChain &TC, const llvm::opt::ArgList &Args,
                     llvm::opt::ArgStringList &CmdArgs);

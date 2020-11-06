@@ -237,7 +237,7 @@ public:
 
   const XRayArgs& getXRayArgs() const;
 
-  const MPKUntrustedArgs& getMPKUntrustedArgs() const;
+  const MPKUntrustedArgs &getMPKUntrustedArgs() const;
 
   // Returns the Arg * that explicitly turned on/off rtti, or nullptr.
   const llvm::opt::Arg *getRTTIArg() const { return CachedRTTIArg; }

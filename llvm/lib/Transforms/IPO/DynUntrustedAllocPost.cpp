@@ -32,13 +32,13 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/raw_ostream.h"
 
-#include <utility>
 #include <map>
 #include <set>
 #include <string>
+#include <utility>
 
 #define DEBUG_TYPE "dyn-untrusted"
 
@@ -47,10 +47,7 @@ using namespace llvm;
 namespace {
 /// A mapping between hook function and the position of the UniqueID argument.
 const static std::map<std::string, int> patchArgIndexMap = {
-  {"allocHook", 2},
-  {"reallocHook", 4}, 
-  {"deallocHook", 2}
-};
+    {"allocHook", 2}, {"reallocHook", 4}, {"deallocHook", 2}};
 
 class IDGenerator {
   uint64_t id;
@@ -92,12 +89,12 @@ public:
 
   bool fromJSON(const llvm::json::Value Alloc, FaultingSite &F) {
     llvm::json::ObjectMapper O(Alloc);
-    
+
     int64_t temp_id;
     bool temp_id_result = O.map("id", temp_id);
     if (temp_id < 0)
       return false;
-    
+
     int64_t temp_pkey;
     bool temp_pkey_result = O.map("pkey", temp_pkey);
     if (temp_pkey < 0)
@@ -110,7 +107,8 @@ public:
   }
 
   std::set<FaultingSite> getFaultingAllocList() {
-    // TODO : Somehow we need to get the path to the .json file containing faults.
+    // TODO : Somehow we need to get the path to the .json file containing
+    // faults.
     std::set<FaultingSite> fault_set;
 
     return fault_set;
@@ -167,8 +165,12 @@ public:
           if (!CSPrev)
             continue;
 
-          LLVM_DEBUG(errs() << "Adding: " << CSPrev.getCalledFunction()->getName().data() << " callsite for allocID: " << id->getZExtValue() << "\n");
-          alloc_map.insert(std::pair<uint64_t, Instruction *>(id->getZExtValue(), prev_inst));
+          LLVM_DEBUG(errs() << "Adding: "
+                            << CSPrev.getCalledFunction()->getName().data()
+                            << " callsite for allocID: " << id->getZExtValue()
+                            << "\n");
+          alloc_map.insert(std::pair<uint64_t, Instruction *>(
+              id->getZExtValue(), prev_inst));
         }
       }
     }
@@ -179,10 +181,11 @@ public:
       return;
     }
 
-    for (auto fsite : FS) { 
+    for (auto fsite : FS) {
       auto map_iter = alloc_map.find(fsite.uniqueID);
       if (map_iter == alloc_map.end()) {
-        LLVM_DEBUG(errs() << "Cannot find unique allocation id: " << fsite.uniqueID << "\n");
+        LLVM_DEBUG(errs() << "Cannot find unique allocation id: "
+                          << fsite.uniqueID << "\n");
         continue;
       }
 

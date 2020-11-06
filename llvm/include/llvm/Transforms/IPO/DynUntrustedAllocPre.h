@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the constructor for the Dynamic Untrusted Allocation 
+// This file defines the constructor for the Dynamic Untrusted Allocation
 // Pre passes.
 //
 //===----------------------------------------------------------------------===//
@@ -23,7 +23,7 @@
 namespace llvm {
 class ModulePass;
 
-/// Pass to identify and add runtime hooks to all Rust alloc, realloc, and 
+/// Pass to identify and add runtime hooks to all Rust alloc, realloc, and
 /// dealloc calls. Additionally removes the NoInline attribute from functions
 /// with the RustAllocator attribute.
 class DynUntrustedAllocPrePass

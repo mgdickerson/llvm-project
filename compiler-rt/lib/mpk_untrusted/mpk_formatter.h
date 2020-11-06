@@ -12,6 +12,6 @@ void flushAllocs();
 
 llvm::json::Value toJSON(AllocSite as);
 
-} //__mpk_untrusted
+} // namespace __mpk_untrusted
 
 #endif

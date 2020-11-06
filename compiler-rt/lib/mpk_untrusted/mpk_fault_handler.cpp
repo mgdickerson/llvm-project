@@ -41,10 +41,10 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
 }
 
 void disablePageMPK(siginfo_t *si, void *arg) {
-  void *page_addr = (void *)((uintptr_t)si->si_addr &~(PAGE_SIZE - 1));
+  void *page_addr = (void *)((uintptr_t)si->si_addr & ~(PAGE_SIZE - 1));
 
   __sanitizer::Report("Disabling MPK protection for page(%p).", page_addr);
-  
+
   pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, 0);
 }
 
@@ -55,35 +55,39 @@ void disableThreadMPK(void *arg, uint32_t pkey) {
   last_access_rights = __mpk_untrusted::pkey_get(pkru_ptr, pkey);
   __mpk_untrusted::pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
 
-  __sanitizer::Report("INFO : Pkey(%d) has been set to ENABLE_ACCESS to enable instruction access.\n", pkey);
+  __sanitizer::Report("INFO : Pkey(%d) has been set to ENABLE_ACCESS to enable "
+                      "instruction access.\n",
+                      pkey);
 }
 
 void enableThreadMPK(void *arg, uint32_t pkey) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
   __mpk_untrusted::pkey_set(pkru_ptr, last_pkey, last_access_rights);
-  __sanitizer::Report("INFO : Pkey(%d) has been reset to %d.\n", last_pkey, last_access_rights);
+  __sanitizer::Report("INFO : Pkey(%d) has been reset to %d.\n", last_pkey,
+                      last_access_rights);
   last_pkey = INVALID_PKEY;
   last_access_rights = PKEY_ENABLE_ACCESS;
 }
 
 void disableMPK(siginfo_t *si, void *arg) {
-  #if PAGE_MPK
-    disablePageMPK(si, arg);
-  #else
-    #if SINGLE_STEP
-      disableThreadMPK(arg, si->si_pkey);
+#if PAGE_MPK
+  disablePageMPK(si, arg);
+#else
+#if SINGLE_STEP
+  disableThreadMPK(arg, si->si_pkey);
 
-      // Set trap flag on next instruction
-      ucontext_t *uctxt = (ucontext_t *)arg;
-      uctxt->uc_mcontext.gregs[REG_EFL] |= TF;
-    #else
-      // TODO : emulateMPK();
-    #endif
-  #endif
+  // Set trap flag on next instruction
+  ucontext_t *uctxt = (ucontext_t *)arg;
+  uctxt->uc_mcontext.gregs[REG_EFL] |= TF;
+#else
+  // TODO : emulateMPK();
+#endif
+#endif
 }
 
 void stepMPKHandle(int sig, siginfo_t *si, void *arg) {
-  __sanitizer::Report("Reached signal handler after single instruction step.\n");
+  __sanitizer::Report(
+      "Reached signal handler after single instruction step.\n");
   enableThreadMPK(arg, si->si_pkey);
 
   // Disable trap flag on next instruction

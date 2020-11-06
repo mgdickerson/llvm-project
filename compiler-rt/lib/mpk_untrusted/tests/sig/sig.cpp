@@ -79,5 +79,4 @@ TEST(SigHandler, SigTest) {
   ASSERT_NE(ptr, MAP_FAILED) << "mmap failed.\n";
   strncpy(ptr, "hello world!", 1024);
   EXPECT_STREQ(ptr, "hello world!");
-
 }

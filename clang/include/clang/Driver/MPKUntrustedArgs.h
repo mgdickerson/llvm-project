@@ -1,5 +1,4 @@
-//===--- MPKUntrustedArgs.h - Arguments for MPKUntrusted ------------------*-
-//C++ -*-===//
+//===--- MPKUntrustedArgs.h - Arguments for MPKUntrusted ------------------ C++ -----===//
 //
 //                     The LLVM Compiler Infrastructure
 //

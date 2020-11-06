@@ -754,11 +754,10 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   return !StaticRuntimes.empty() || !NonWholeStaticRuntimes.empty();
 }
 
-bool tools::addMPKUntrustedRuntime(const ToolChain &TC, const ArgList &Args, ArgStringList &CmdArgs) {
+bool tools::addMPKUntrustedRuntime(const ToolChain &TC, const ArgList &Args,
+                                   ArgStringList &CmdArgs) {
   if (TC.getMPKUntrustedArgs().needsMPKUntrustedRt()) {
     CmdArgs.push_back("-whole-archive");
-    // TODO : Both static and dynamic libraries should work, going to build 
-    // with dynamic libraries for now to make testing faster when we make changes.
     CmdArgs.push_back(TC.getCompilerRTArgString(Args, "mpk_untrusted", false));
     CmdArgs.push_back("-no-whole-archive");
     return true;
@@ -767,7 +766,8 @@ bool tools::addMPKUntrustedRuntime(const ToolChain &TC, const ArgList &Args, Arg
   return false;
 }
 
-void tools::linkMPKUntrustedRuntimeDeps(const ToolChain &TC, ArgStringList &CmdArgs) {
+void tools::linkMPKUntrustedRuntimeDeps(const ToolChain &TC,
+                                        ArgStringList &CmdArgs) {
   CmdArgs.push_back("--no-as-needed");
   if (TC.getTriple().getOS() != llvm::Triple::OpenBSD)
     CmdArgs.push_back("-lrt");
@@ -776,7 +776,8 @@ void tools::linkMPKUntrustedRuntimeDeps(const ToolChain &TC, ArgStringList &CmdA
   CmdArgs.push_back("-lpthread");
   CmdArgs.push_back("-ldl");
   CmdArgs.push_back("-ltinfo");
-  //TODO(mgdicker): There is probably a better way to add this flag & maybe fix runtime path
+  // TODO(mgdicker): There is probably a better way to add this flag & maybe fix
+  // runtime path
   CmdArgs.push_back("-lLLVMSupport");
 }
 

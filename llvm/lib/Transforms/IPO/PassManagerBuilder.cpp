@@ -160,9 +160,9 @@ static cl::opt<bool>
     EnableCHR("enable-chr", cl::init(true), cl::Hidden,
               cl::desc("Enable control height reduction optimization (CHR)"));
 
-static cl::opt<bool>
-    MPKPass("mpk-pass", cl::init(false), cl::Hidden,
-            cl::desc("Enables the static instrumentation for the MPK Untrusted Analysis pass."));
+static cl::opt<bool> MPKPass("mpk-pass", cl::init(false), cl::Hidden,
+                             cl::desc("Enables the static instrumentation for "
+                                      "the MPK Untrusted Analysis pass."));
 
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
@@ -437,7 +437,8 @@ void PassManagerBuilder::populateModulePassManager(
   // Allow forcing function attributes as a debugging and tuning aid.
   MPM.add(createForceFunctionAttrsLegacyPass());
 
-  // TODO : Might have to add Passes in this additionally if I want to see it in the LLVM IR output.
+  // TODO : Might have to add Passes in this additionally if I want to see it in
+  // the LLVM IR output.
 
   // If all optimizations are disabled, just run the always-inline pass and,
   // if enabled, the function merging pass.
@@ -453,7 +454,8 @@ void PassManagerBuilder::populateModulePassManager(
       Inliner = nullptr;
     }
 
-    // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
+    // Run DynUntrustedAllocationPost after inliner to assign unique IDs to
+    // allocation hooks.
     if (MPKPass)
       MPM.add(createDynUntrustedAllocPostPass());
 
@@ -559,7 +561,8 @@ void PassManagerBuilder::populateModulePassManager(
     RunInliner = true;
   }
 
-  // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
+  // Run DynUntrustedAllocationPost after inliner to assign unique IDs to
+  // allocation hooks.
   if (MPKPass)
     MPM.add(createDynUntrustedAllocPostPass());
 
@@ -868,7 +871,8 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
     Inliner = nullptr;
   }
 
-  // Run DynUntrustedAllocationPost after inliner to assign unique IDs to allocation hooks.
+  // Run DynUntrustedAllocationPost after inliner to assign unique IDs to
+  // allocation hooks.
   if (MPKPass)
     PM.add(createDynUntrustedAllocPostPass());
 

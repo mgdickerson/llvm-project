@@ -107,13 +107,16 @@ public:
     if (!F)
       return nullptr;
 
-    if (F == M.getFunction("__rust_alloc") || F == M.getFunction("__rust_alloc_zeroed")) {
-      return CallInst::Create((Function *)allocHook,
-        {CS->getInstruction(), CS->getArgument(0), getDummyID(M)});
-    } else if (F == M.getFunction("__rust_realloc")) {
+    if (F == M.getFunction("__rust_alloc") ||
+        F == M.getFunction("__rust_alloc_zeroed")) {
       return CallInst::Create(
-          (Function *)reallocHook, {CS->getInstruction(), CS->getArgument(3), CS->getArgument(0),
-            CS->getArgument(1), getDummyID(M)});
+          (Function *)allocHook,
+          {CS->getInstruction(), CS->getArgument(0), getDummyID(M)});
+    } else if (F == M.getFunction("__rust_realloc")) {
+      return CallInst::Create((Function *)reallocHook,
+                              {CS->getInstruction(), CS->getArgument(3),
+                               CS->getArgument(0), CS->getArgument(1),
+                               getDummyID(M)});
     } else if (F == M.getFunction("__rust_dealloc")) {
       return CallInst::Create(
           (Function *)deallocHook,
@@ -147,7 +150,6 @@ public:
           BB->getInstList().insert(bbIter, newHook);
         }
       }
-
     }
   }
 

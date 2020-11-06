@@ -270,7 +270,6 @@ ModulePass *createDynUntrustedAllocPrePass();
 // Patches Function Hooks with Unique Identifier post-Inliner
 ModulePass *createDynUntrustedAllocPostPass();
 
-
 //===----------------------------------------------------------------------===//
 // SampleProfilePass - Loads sample profile data from disk and generates
 // IR metadata to reflect the profile.

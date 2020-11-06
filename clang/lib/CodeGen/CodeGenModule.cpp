@@ -1252,12 +1252,11 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
     return;
   }
 
+  if (D->hasAttr<RustAllocatorAttr>())
+    B.addAttribute(llvm::Attribute::RustAllocator);
 
-  if(D->hasAttr<RustAllocatorAttr>())
-      B.addAttribute(llvm::Attribute::RustAllocator);
-  
-  if(D->hasAttr<UntrustedAttr>())
-      B.addAttribute(llvm::Attribute::Untrusted);
+  if (D->hasAttr<UntrustedAttr>())
+    B.addAttribute(llvm::Attribute::Untrusted);
 
   // Track whether we need to add the optnone LLVM attribute,
   // starting with the default for this optimization level.

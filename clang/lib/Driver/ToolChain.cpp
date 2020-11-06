@@ -18,9 +18,9 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Job.h"
+#include "clang/Driver/MPKUntrustedArgs.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
-#include "clang/Driver/MPKUntrustedArgs.h"
 #include "clang/Driver/XRayArgs.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -120,7 +120,7 @@ const SanitizerArgs& ToolChain::getSanitizerArgs() const {
   return *SanitizerArguments.get();
 }
 
-const MPKUntrustedArgs& ToolChain::getMPKUntrustedArgs() const {
+const MPKUntrustedArgs &ToolChain::getMPKUntrustedArgs() const {
   if (!MPKUntrustedArguments.get())
     MPKUntrustedArguments.reset(new MPKUntrustedArgs(*this, Args));
   return *MPKUntrustedArguments.get();
