@@ -30,11 +30,15 @@ class ModulePass;
 class DynUntrustedAllocPostPass
     : public PassInfoMixin<DynUntrustedAllocPostPass> {
 public:
-  DynUntrustedAllocPostPass() {}
+  DynUntrustedAllocPostPass(std::string fault_path = "")
+      : FaultPath(fault_path) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+
+private:
+  std::string FaultPath;
 };
 
-ModulePass *createDynUntrustedAllocPostPass();
+ModulePass *createDynUntrustedAllocPostPass(std::string fault_path);
 
 void initializeDynUntrustedAllocPostPass(PassRegistry &Registry);
 } // namespace llvm
