@@ -3,8 +3,12 @@
 
 #include "alloc_site_handler.h"
 
+// TODO : See if this makes includes and builds easier.
+#include "fstream"
+
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
 
 namespace __mpk_untrusted {
 
