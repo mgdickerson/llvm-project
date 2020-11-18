@@ -27,15 +27,15 @@ private:
   AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
 
 public:
-  AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID,
+  AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID, uint32_t pkey = 0,
             alloc_set_type assocSet = alloc_set_type())
-      : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{0}, associatedSet{
+      : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{pkey}, associatedSet{
                                                                assocSet} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(uniqueID >= 0);
   }
-
+  
   /// Returns a shared pointer to the Error AllocSite.
   static std::shared_ptr<AllocSite> error() {
     if (!AllocErr)
@@ -202,7 +202,7 @@ public:
     }
   }
 
-  std::set<AllocSite> &faultingAllocs() { return fault_set; }
+  std::set<AllocSite>& faultingAllocs() { return fault_set; }
 };
 } // namespace __mpk_untrusted
 extern "C" {
