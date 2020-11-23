@@ -5,16 +5,15 @@
 
 // TODO : See if this makes includes and builds easier.
 #include "fstream"
-
-#include "llvm/Support/JSON.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/FileSystem.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <time.h>
+#include <string>
 
 namespace __mpk_untrusted {
 
 void flushAllocs();
-
-llvm::json::Value toJSON(AllocSite as);
 
 } // namespace __mpk_untrusted
 

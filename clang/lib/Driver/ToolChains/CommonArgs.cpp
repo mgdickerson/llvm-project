@@ -776,9 +776,6 @@ void tools::linkMPKUntrustedRuntimeDeps(const ToolChain &TC,
   CmdArgs.push_back("-lpthread");
   CmdArgs.push_back("-ldl");
   CmdArgs.push_back("-ltinfo");
-  // TODO(mgdicker): There is probably a better way to add this flag & maybe fix
-  // runtime path
-  CmdArgs.push_back("-lLLVMSupport");
 }
 
 bool tools::addXRayRuntime(const ToolChain&TC, const ArgList &Args, ArgStringList &CmdArgs) {
