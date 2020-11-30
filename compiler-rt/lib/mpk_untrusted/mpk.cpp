@@ -50,7 +50,6 @@ int pkey_get(__uint32_t *pkru, int key) {
     errno = EINVAL;
     return -1;
   }
-  // unsigned int pkru = pkey_read();
   return (*pkru >> (2 * key)) & 3;
 #else
   return 0;
@@ -65,10 +64,8 @@ int pkey_set(__uint32_t *pkru, int key, unsigned int rights) {
     return -1;
   }
   unsigned int mask = 3 << (2 * key);
-  // unsigned int pkru = pkey_read();
   *pkru = (*pkru & ~mask) | (rights << (2 * key));
   return 0;
-  // pkey_write(pkru);
 #endif
   return 0;
 }

@@ -4,7 +4,8 @@
 
 #include <sys/mman.h>
 
-const int PAGE_SIZE = 4096;
+// Set to whatever the default page size will be for page based MPK.
+#define PAGE_SIZE 4096
 
 // Trap Flag
 #define TF 0x100
