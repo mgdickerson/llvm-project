@@ -63,6 +63,14 @@ MPKUntrustedArgs::MPKUntrustedArgs(const ToolChain &TC, const ArgList &Args) {
     MPKUntrusted = true;
     MPKUntrustedRT = true;
   }
+
+  for (const auto &Filename :
+       Args.getAllArgValues(options::OPT_fmpk_fault_list)) {
+    if (llvm::sys::fs::exists(Filename)) {
+      MPKFaultList.push_back(Filename);
+    } else
+      D.Diag(clang::diag::err_drv_no_such_file) << Filename;
+  }
 }
 
 void MPKUntrustedArgs::addArgs(const ToolChain &TC, const ArgList &Args,
@@ -72,4 +80,13 @@ void MPKUntrustedArgs::addArgs(const ToolChain &TC, const ArgList &Args,
     return;
 
   CmdArgs.push_back(MPKUntrustedInstrumentOption);
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-mpk-pass");
+
+  if (!MPKFaultList.empty()) {
+    CmdArgs.push_back("-mllvm");
+    SmallString<64> MPKFaultListArg("-mpk-faults=");
+    MPKFaultListArg += MPKFaultList.front();
+    CmdArgs.push_back(Args.MakeArgString(MPKFaultListArg));
+  }
 }
