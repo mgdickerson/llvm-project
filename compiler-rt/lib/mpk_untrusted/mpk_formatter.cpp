@@ -1,34 +1,48 @@
 #include "mpk_formatter.h"
 #include "alloc_site_handler.h"
-#include <bits/stdint-intn.h>
-#include <bits/stdint-uintn.h>
-#include <fstream>
 
 namespace __mpk_untrusted {
 
 #define ATTEMPTS 128
+#define ENTROPY 16
 
-bool makeUniqueFile(std::string Model, std::ofstream &OS) {
-  srand(time(NULL));
+llvm::Optional<std::string> makeUniqueFilename(std::string path,
+                                               std::string base_name,
+                                               std::string extension) {
+  std::mt19937_64 mt_rand(time(NULL));
+
   // Loop for number of attempts just in case level of entropy is to low
   for (uint8_t attempt = 0; attempt != ATTEMPTS; ++attempt) {
-    std::string unique = Model;
-    for (uint32_t i = 0, e = unique.length(); i != e; ++i) {
-      if (unique[i] == '%')
-        unique[i] = "0123456789abcdef"[rand() & 15];
-    }
+    std::stringstream unique;
+    unique << path << "/" << base_name << "-" << getpid() << "-"
+           << std::setfill('0') << std::setw(ENTROPY) << std::hex << mt_rand()
+           << "." << extension;
     struct stat info;
     // If file does not already exist, create and return ofstream
-    if (stat(unique.c_str(), &info) == -1) {
-      OS.open(unique, std::ios_base::trunc);
-      // Ensure we correctly opened OS ofstream
-      if (OS)
-        return true;
+    if (stat(unique.str().c_str(), &info) == -1) {
+      return unique.str();
     }
   }
 
   // Failed to make unique name
-  return false;
+  __sanitizer::Report("Failed to make uniqueFileID.\n");
+  return llvm::None;
+}
+
+llvm::Optional<std::ofstream> makeUniqueStream(std::string path,
+                                               std::string base_name,
+                                               std::string extension) {
+  auto Filename = makeUniqueFilename(path, base_name, extension);
+  if (!Filename)
+    return llvm::None;
+
+  std::ofstream OS;
+  OS.open(Filename.getValue());
+  if (OS)
+    return OS;
+
+  __sanitizer::Report("Failed to create uniqueOStream.\n");
+  return llvm::None;
 }
 
 bool is_directory(std::string directory) {
@@ -44,18 +58,15 @@ bool is_directory(std::string directory) {
 // Function for handwriting the JSON output we want (to remove dependency on
 // llvm/Support).
 void writeJSON(std::ofstream &OS, std::set<AllocSite> &faultSet) {
+  if (faultSet.size() <= 0)
+    return;
+
   OS << "[\n";
   int64_t items_remaining = faultSet.size();
   for (auto fault : faultSet) {
     --items_remaining;
-    if (items_remaining <= 0) {
-      // This is the last (or only) item, do not add comma
-      OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
-         << " }\n";
-    } else {
-      OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
-         << " },\n";
-    }
+    OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
+       << " }" << (items_remaining ? "," : "") << "\n";
   }
   OS << "]\n";
 }
@@ -69,30 +80,31 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
     }
   }
 
-  std::ofstream OS;
-  if (!makeUniqueFile(TestDirectory + "/faulting-allocs-%%%%%%%.json", OS))
+  auto OS = makeUniqueStream(TestDirectory, "faulting-allocs", "json");
+  if (!OS)
     return false;
-  writeJSON(OS, faultSet);
-  OS.flush();
+  writeJSON(OS.getValue(), faultSet);
+  OS.getValue().flush();
 
   auto stats = StatsTracker::init();
-  std::ofstream SOS;
-  if (!makeUniqueFile(TestDirectory + "/runtime-stats-%%%%%%%.stat", SOS))
+  auto SOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
+  if (!SOS)
     return false;
-  SOS << "Number of Unique AllocSites Found: " << stats->AllocSitesFound.size()
-      << "\n"
-      << "Number of Unique ReallocSites Found: "
-      << stats->ReallocSitesFound.size() << "\n"
-      << "Number of Times allocHook Called: " << stats->allocHookCalls << "\n"
-      << "Number of Times reallocHook Called: " << stats->reallocHookCalls
-      << "\n"
-      << "Number of Times deallocHook Called: " << stats->deallocHookCalls
-      << "\n";
+  SOS.getValue() << "Number of Unique AllocSites Found: "
+                 << stats->AllocSitesFound.size() << "\n"
+                 << "Number of Unique ReallocSites Found: "
+                 << stats->ReallocSitesFound.size() << "\n"
+                 << "Number of Times allocHook Called: "
+                 << stats->allocHookCalls << "\n"
+                 << "Number of Times reallocHook Called: "
+                 << stats->reallocHookCalls << "\n"
+                 << "Number of Times deallocHook Called: "
+                 << stats->deallocHookCalls << "\n";
   for (auto &key_value : stats->AllocSiteFaultCount) {
-    SOS << "AllocSite(" << key_value.first->id()
-        << ") faults: " << key_value.second << "\n";
+    SOS.getValue() << "AllocSite(" << key_value.first->id()
+                   << ") faults: " << key_value.second << "\n";
   }
-  SOS.flush();
+  SOS.getValue().flush();
   return true;
 }
 
