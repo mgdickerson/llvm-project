@@ -10,8 +10,7 @@ std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
 
 extern "C" {
 void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
-  auto site = std::shared_ptr<__mpk_untrusted::AllocSite>(
-      new __mpk_untrusted::AllocSite(ptr, size, uniqueID));
+  auto site = std::make_shared<__mpk_untrusted::AllocSite>(ptr, size, uniqueID);
   auto handler = __mpk_untrusted::AllocSiteHandler::init();
   handler->insertAllocSite(ptr, site);
   __sanitizer::Report("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr,
@@ -43,8 +42,8 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // Create new Allocation Site for given pointer, adding the previous
   // Allocation Site and its associated set to the new AllocSite's associated
   // set.
-  auto site = std::shared_ptr<__mpk_untrusted::AllocSite>(
-      new __mpk_untrusted::AllocSite(newPtr, newSize, uniqueID, 0, assocSet));
+  auto site = std::make_shared<__mpk_untrusted::AllocSite>(
+      newPtr, newSize, uniqueID, 0, assocSet);
   handler->insertAllocSite(newPtr, site);
   __sanitizer::Report(
       "INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
