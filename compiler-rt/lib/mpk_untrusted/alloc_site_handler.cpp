@@ -43,7 +43,7 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // Allocation Site and its associated set to the new AllocSite's associated
   // set.
   auto site = std::shared_ptr<AllocSite>(
-      new AllocSite(newPtr, newSize, uniqueID, 0, assocSet));
+      new AllocSite(newPtr, newSize, uniqueID, assocSet));
   handler->insertAllocSite(newPtr, site);
   __sanitizer::Report(
       "INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,

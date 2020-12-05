@@ -31,8 +31,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <fstream>
 #include <set>
@@ -43,9 +41,6 @@
 using namespace llvm;
 
 namespace {
-// Tracker to count number of hook calls we create.
-uint64_t hook_count = 0;
-
 // Counters for tracking each type of hook separately
 uint64_t alloc_hook_counter = 0;
 uint64_t realloc_hook_counter = 0;
@@ -109,9 +104,6 @@ public:
 
     // Remove inline attribute from functions for inlining.
     removeInlineAttr(M);
-
-    // Print stats.
-    printStats(M);
     return true;
   }
 
@@ -143,6 +135,9 @@ public:
   }
 
   void hookFunctions(Module &M) {
+    // Tracker to count number of hook calls we create.
+    uint64_t hook_count = 0;
+
     for (Function &F : M) {
       if (F.isDeclaration())
         continue;
@@ -168,31 +163,17 @@ public:
         }
       }
     }
-  }
 
-  void printStats(Module &M) {
-    std::string TestDirectory = "TestResults";
-    if (!llvm::sys::fs::is_directory(TestDirectory))
-      llvm::sys::fs::create_directory(TestDirectory);
-  
-    llvm::Expected<llvm::sys::fs::TempFile> PreStats =
-        llvm::sys::fs::TempFile::create(TestDirectory + "/static-pre-%%%%%%%.stat");
-    if (!PreStats) {
-      LLVM_DEBUG(errs() << "Error making unique filename: " << llvm::toString(PreStats.takeError()) << "\n");
-      return;
-    }
-
-    llvm::raw_fd_ostream OS(PreStats->FD, /* shouldClose */ false);
-    OS << "Total number of hook instructions: " << hook_count << "\n"
-       << "Number of alloc hook instructions: " << alloc_hook_counter << "\n"
-       << "Number of realloc hook instructions: " << realloc_hook_counter << "\n"
-       << "Number of dealloc hook instructions: " << dealloc_hook_counter << "\n";
-    OS.flush();
-  
-    if (auto E = PreStats->keep()) {
-      LLVM_DEBUG(errs() << "Error keeping pre-stats file: " << llvm::toString(std::move(E)) << "\n");
-      return;
-    }
+    // TODO (mitch) : This current includes the file extension as part of the name,
+    // might want to clean that out if it becomes problematic.
+    LLVM_DEBUG(errs() << "Module Name: " << M.getName() << "\n");
+    std::string statName = M.getName().str() + ".StaticStats.txt";
+    std::ofstream statsFile;
+    statsFile.open(statName, std::ios_base::trunc);
+    statsFile << "Total number of hook instructions: " << hook_count << "\n"
+              << "Number of alloc hook instructions: " << alloc_hook_counter << "\n"
+              << "Number of realloc hook instructions: " << realloc_hook_counter << "\n"
+              << "Number of dealloc hook instructions: " << dealloc_hook_counter << "\n";
   }
 
   /// Iterate all Functions of Module M, remove NoInline attribute from

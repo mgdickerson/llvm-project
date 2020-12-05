@@ -46,11 +46,6 @@
 using namespace llvm;
 
 namespace {
-// Ensure we assign a unique ID to the same number of hooks as we made in the Pre pass.
-uint64_t total_hooks = 0;
-// Count the number of modified Alloc instructions
-uint64_t modified_inst_count = 0;
-
 /// A mapping between hook function and the position of the UniqueID argument.
 const static std::map<std::string, int> patchArgIndexMap = {
     {"allocHook", 2}, {"reallocHook", 4}, {"deallocHook", 2}};
@@ -91,7 +86,6 @@ public:
     // consistent between runs.
     assignUniqueIDs(M);
     fixFaultedAllocations(M, getFaultingAllocList());
-    printStats(M);
 
     return true;
   }
@@ -157,6 +151,9 @@ public:
   }
 
   void assignUniqueIDs(Module &M) {
+    // Ensure we assign a unique ID to the same number of hooks as we made in the Pre pass.
+    uint64_t total_hooks = 0;
+
     std::vector<Function *> WorkList;
     for (Function &F : M) {
       if (!F.isDeclaration())
@@ -213,12 +210,23 @@ public:
         }
       }
     }
+
+    // TODO (mitch) : This current includes the file extension as part of the name,
+    // might want to clean that out if it becomes problematic.
+    LLVM_DEBUG(errs() << "Module Name: " << M.getName() << "\n");
+    std::string statName = M.getName().str() + ".StaticStats.txt";
+    std::ofstream statsFile;
+    statsFile.open(statName, std::ios_base::app);
+    statsFile << "Total number hooks given a UniqueID: " << total_hooks << "\n";
   }
 
   void fixFaultedAllocations(Module &M, std::vector<FaultingSite> FS) {
     if (FS.empty()) {
       return;
     }
+
+    // Count the number of modified Alloc instructions
+    uint64_t modified_inst_count = 0;
 
     // Currently only patching __rust_alloc and __rust_alloc_zeroed
     const std::map<std::string, std::string> AllocReplacementMap = {
@@ -266,29 +274,14 @@ public:
         ++modified_inst_count;
       }
     }
-  }
 
-  void printStats(Module &M) {
-    std::string TestDirectory = "TestResults";
-    if (!llvm::sys::fs::is_directory(TestDirectory))
-      llvm::sys::fs::create_directory(TestDirectory);
-  
-    llvm::Expected<llvm::sys::fs::TempFile> PreStats =
-        llvm::sys::fs::TempFile::create(TestDirectory + "/static-post-%%%%%%%.stat");
-    if (!PreStats) {
-      LLVM_DEBUG(errs() << "Error making unique filename: " << llvm::toString(PreStats.takeError()) << "\n");
-      return;
-    }
-
-    llvm::raw_fd_ostream OS(PreStats->FD, /* shouldClose */ false);
-    OS << "Number of alloc instructions modified to unsafe: " << modified_inst_count << "\n"
-       << "Total number hooks given a UniqueID: " << total_hooks << "\n";
-    OS.flush();
-  
-    if (auto E = PreStats->keep()) {
-      LLVM_DEBUG(errs() << "Error keeping pre-stats file: " << llvm::toString(std::move(E)) << "\n");
-      return;
-    }
+    // TODO (mitch) : This current includes the file extension as part of the name,
+    // might want to clean that out if it becomes problematic.
+    LLVM_DEBUG(errs() << "Module Name: " << M.getName() << "\n");
+    std::string statName = M.getName().str() + ".StaticStats.txt";
+    std::ofstream statsFile;
+    statsFile.open(statName, std::ios_base::app);
+    statsFile << "Number of alloc instructions modified to unsafe: " << modified_inst_count << "\n";
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
