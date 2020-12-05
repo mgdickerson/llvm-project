@@ -9,7 +9,7 @@ namespace __mpk_untrusted {
 llvm::Optional<std::string> makeUniqueFilename(std::string path,
                                                std::string base_name,
                                                std::string extension) {
-  std::mt19937_64 mt_rand(std::random_device{}());
+  std::mt19937_64 mt_rand(time(NULL));
 
   // Loop for number of attempts just in case level of entropy is to low
   for (uint8_t attempt = 0; attempt != ATTEMPTS; ++attempt) {
@@ -80,32 +80,31 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
     }
   }
 
-  auto uniqueOS = makeUniqueStream(TestDirectory, "faulting-allocs", "json");
-  if (!uniqueOS)
+  auto OS = makeUniqueStream(TestDirectory, "faulting-allocs", "json");
+  if (!OS)
     return false;
-  std::ofstream &OS = uniqueOS.getValue();
-  writeJSON(OS, faultSet);
-  OS.flush();
+  writeJSON(OS.getValue(), faultSet);
+  OS.getValue().flush();
 
   auto stats = StatsTracker::init();
-  auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
-  if (!uniqueSOS)
+  auto SOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
+  if (!SOS)
     return false;
-  std::ofstream &SOS = uniqueOS.getValue();
-  SOS << "Number of Unique AllocSites Found: " << stats->AllocSitesFound.size()
-      << "\n"
-      << "Number of Unique ReallocSites Found: "
-      << stats->ReallocSitesFound.size() << "\n"
-      << "Number of Times allocHook Called: " << stats->allocHookCalls << "\n"
-      << "Number of Times reallocHook Called: " << stats->reallocHookCalls
-      << "\n"
-      << "Number of Times deallocHook Called: " << stats->deallocHookCalls
-      << "\n";
+  SOS.getValue() << "Number of Unique AllocSites Found: "
+                 << stats->AllocSitesFound.size() << "\n"
+                 << "Number of Unique ReallocSites Found: "
+                 << stats->ReallocSitesFound.size() << "\n"
+                 << "Number of Times allocHook Called: "
+                 << stats->allocHookCalls << "\n"
+                 << "Number of Times reallocHook Called: "
+                 << stats->reallocHookCalls << "\n"
+                 << "Number of Times deallocHook Called: "
+                 << stats->deallocHookCalls << "\n";
   for (auto &key_value : stats->AllocSiteFaultCount) {
-    SOS << "AllocSite(" << key_value.first->id()
-        << ") faults: " << key_value.second << "\n";
+    SOS.getValue() << "AllocSite(" << key_value.first->id()
+                   << ") faults: " << key_value.second << "\n";
   }
-  SOS.flush();
+  SOS.getValue().flush();
   return true;
 }
 

@@ -12,6 +12,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 namespace __mpk_untrusted {
