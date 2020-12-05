@@ -23,6 +23,10 @@ set(MPK_UNTRUSTED_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 set(MPK_UNTRUSTED_LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS})
 set(MPK_UNTRUSTED_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARY} ${SANITIZER_COMMON_LINK_LIBS} dl pthread rt m tinfo)
 
+foreach (DIR ${LLVM_INCLUDE_DIR} ${LLVM_MAIN_INCLUDE_DIR})
+    list(APPEND MPK_UNTRUSTED_CFLAGS -I${DIR})
+endforeach()
+
 add_compiler_rt_component(mpk_untrusted)
 foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
     add_compiler_rt_runtime(clang_rt.mpk_untrusted
