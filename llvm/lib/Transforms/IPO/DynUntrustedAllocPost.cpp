@@ -32,9 +32,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/JSON.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <map>
 #include <set>
@@ -72,10 +71,8 @@ struct FaultingSite {
 class DynUntrustedAllocPost : public ModulePass {
 public:
   static char ID;
-  std::string filename;
 
-  DynUntrustedAllocPost(std::string fault_path = "")
-      : ModulePass(ID), filename(fault_path) {
+  DynUntrustedAllocPost() : ModulePass(ID) {
     initializeDynUntrustedAllocPostPass(*PassRegistry::getPassRegistry());
   }
   virtual ~DynUntrustedAllocPost() = default;
@@ -90,7 +87,7 @@ public:
     return true;
   }
 
-  bool fromJSON(const llvm::json::Value &Alloc, FaultingSite &F) {
+  bool fromJSON(const llvm::json::Value Alloc, FaultingSite &F) {
     llvm::json::ObjectMapper O(Alloc);
 
     int64_t temp_id;
@@ -109,39 +106,10 @@ public:
     return O && temp_id_result && temp_pkey_result;
   }
 
-  std::vector<FaultingSite> getFaultingAllocList() {
-    std::vector<FaultingSite> fault_set;
-    // If no path provided, return empty set.
-    if (filename.empty())
-      return fault_set;
-
-    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
-        MemoryBuffer::getFile(filename);
-    std::error_code ec = File.getError();
-
-    if (ec) {
-      LLVM_DEBUG(errs() << "File could not be read: " << ec.message() << "\n");
-      return fault_set;
-    }
-
-    Expected<json::Value> ParseResult =
-        json::parse(File.get().get()->getBuffer());
-    if (Error E = ParseResult.takeError()) {
-      LLVM_DEBUG(errs() << "Failed to Parse JSON array: " << E << "\n");
-      consumeError(std::move(E));
-      return fault_set;
-    }
-
-    if (!ParseResult->getAsArray()) {
-      LLVM_DEBUG(errs() << "Failed to get JSON Value as JSON array.\n");
-      return fault_set;
-    }
-
-    for (const auto &Alloc : *ParseResult->getAsArray()) {
-      FaultingSite FS;
-      if (fromJSON(Alloc, FS))
-        fault_set.push_back(FS);
-    }
+  std::set<FaultingSite> getFaultingAllocList() {
+    // TODO : Somehow we need to get the path to the .json file containing
+    // faults.
+    std::set<FaultingSite> fault_set;
 
     return fault_set;
   }
@@ -208,7 +176,7 @@ public:
     }
   }
 
-  void fixFaultedAllocations(Module &M, std::vector<FaultingSite> FS) {
+  void fixFaultedAllocations(Module &M, std::set<FaultingSite> FS) {
     if (FS.empty()) {
       return;
     }
@@ -248,13 +216,13 @@ INITIALIZE_PASS_END(DynUntrustedAllocPost, "dyn-untrusted-post",
                     "function hooks for tracking allocation IDs.",
                     false, false)
 
-ModulePass *llvm::createDynUntrustedAllocPostPass(std::string fault_path) {
-  return new DynUntrustedAllocPost(fault_path);
+ModulePass *llvm::createDynUntrustedAllocPostPass() {
+  return new DynUntrustedAllocPost();
 }
 
 PreservedAnalyses DynUntrustedAllocPostPass::run(Module &M,
                                                  ModuleAnalysisManager &AM) {
-  DynUntrustedAllocPost dyn(FaultPath);
+  DynUntrustedAllocPost dyn;
   if (!dyn.runOnModule(M)) {
     return PreservedAnalyses::all();
   }

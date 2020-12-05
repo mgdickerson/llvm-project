@@ -14,35 +14,22 @@ typedef int8_t *rust_ptr;
 namespace __mpk_untrusted {
 
 class AllocSite {
-  typedef std::set<std::shared_ptr<AllocSite>> alloc_set_type;
-
 private:
-  static std::shared_ptr<AllocSite> AllocErr;
-
   rust_ptr ptr;
   int64_t size;
   int64_t uniqueID;
   uint32_t pkey;
-  alloc_set_type associatedSet;
   AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
 
 public:
-  AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID,
-            alloc_set_type assocSet = alloc_set_type())
-      : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{0}, associatedSet{
-                                                               assocSet} {
+  AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID)
+      : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{0} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(uniqueID >= 0);
   }
 
-  /// Returns a shared pointer to the Error AllocSite.
-  static std::shared_ptr<AllocSite> error() {
-    if (!AllocErr)
-      AllocErr = std::shared_ptr<AllocSite>(new AllocSite());
-
-    return AllocErr;
-  }
+  static AllocSite error() { return AllocSite(); }
 
   bool containsPtr(rust_ptr ptrCmp) {
     // TODO : Note, might be important to cast pointers to uintptr_t type for
@@ -60,8 +47,6 @@ public:
 
   uint32_t getPkey() { return pkey; }
 
-  alloc_set_type getAssociatedSet() { return associatedSet; }
-
   bool operator<(const AllocSite &ac) const { return uniqueID < ac.id(); }
 };
 
@@ -70,7 +55,7 @@ private:
   // Singleton AllocSiteHandler pointer
   static std::shared_ptr<AllocSiteHandler> handle;
   // Mapping from memory location pointer to AllocationSite
-  std::map<rust_ptr, std::shared_ptr<AllocSite>> allocation_map;
+  std::map<rust_ptr, AllocSite> allocation_map;
   // Set of faulting AllocationSites
   std::set<AllocSite> fault_set;
   // Thread safety mutex
@@ -90,13 +75,14 @@ public:
 
   bool empty() { return allocation_map.empty(); }
 
-  void insertAllocSite(rust_ptr ptr, std::shared_ptr<AllocSite> site) {
+  void insertAllocSite(rust_ptr ptr, AllocSite site) {
     // First, obtain the mutex lock to ensure safe addition of item to map.
     const std::lock_guard<std::mutex> lock(mx);
 
     // Insert AllocationSite for given ptr.
-    allocation_map.insert(
-        std::pair<rust_ptr, std::shared_ptr<AllocSite>>(ptr, site));
+    allocation_map.insert(std::pair<rust_ptr, AllocSite>(ptr, site));
+
+    // lock falls out of scope and releases mutex.
   }
 
   void removeAllocSite(rust_ptr ptr) {
@@ -107,7 +93,7 @@ public:
     allocation_map.erase(ptr);
   }
 
-  std::shared_ptr<AllocSite> getAllocSite(rust_ptr ptr) {
+  AllocSite getAllocSite(rust_ptr ptr) {
     // Obtain mutex lock.
     const std::lock_guard<std::mutex> lock(mx);
 
@@ -133,7 +119,7 @@ public:
       // item, otherwise return error.
       if (map_iter != allocation_map.begin()) {
         --map_iter;
-        if (map_iter->second->containsPtr(ptr)) {
+        if (map_iter->second.containsPtr(ptr)) {
           return map_iter->second;
         }
         // If we reach this point, it means the allocation site did not contain
@@ -148,22 +134,17 @@ public:
   void addFaultAlloc(rust_ptr ptr, uint32_t pkey) {
     auto alloc = getAllocSite(ptr);
     __sanitizer::Report("INFO : Getting AllocSite : id(%d), ptr(%p)\n",
-                        alloc->id(), alloc->getPtr());
+                        alloc.id(), alloc.getPtr());
 
-    if (!alloc->isValid()) {
+    if (!alloc.isValid()) {
       __sanitizer::Report(
           "INFO : AllocSite is not valid, will not add it to Fault Set.\n");
       return;
     }
 
-    alloc->addPkey(pkey);
+    alloc.addPkey(pkey);
 
-    fault_set.insert(*alloc);
-
-    for (auto assoc : alloc->getAssociatedSet()) {
-      assoc->addPkey(pkey);
-      fault_set.insert(*assoc);
-    }
+    fault_set.insert(alloc);
   }
 
   std::set<AllocSite> &faultingAllocs() { return fault_set; }

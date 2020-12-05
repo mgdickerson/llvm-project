@@ -164,12 +164,6 @@ static cl::opt<bool> MPKPass("mpk-pass", cl::init(false), cl::Hidden,
                              cl::desc("Enables the static instrumentation for "
                                       "the MPK Untrusted Analysis pass."));
 
-static cl::opt<std::string>
-    MPKFaultSites("faults", cl::init(""), cl::Hidden,
-                  cl::desc("Input for faulting allocations feedback file "
-                           "and path for MPK Untrusted Analysis."),
-                  cl::value_desc("filename"));
-
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
@@ -463,7 +457,7 @@ void PassManagerBuilder::populateModulePassManager(
     // Run DynUntrustedAllocationPost after inliner to assign unique IDs to
     // allocation hooks.
     if (MPKPass)
-      MPM.add(createDynUntrustedAllocPostPass(MPKFaultSites));
+      MPM.add(createDynUntrustedAllocPostPass());
 
     // FIXME: The BarrierNoopPass is a HACK! The inliner pass above implicitly
     // creates a CGSCC pass manager, but we don't want to add extensions into
@@ -570,7 +564,7 @@ void PassManagerBuilder::populateModulePassManager(
   // Run DynUntrustedAllocationPost after inliner to assign unique IDs to
   // allocation hooks.
   if (MPKPass)
-    MPM.add(createDynUntrustedAllocPostPass(MPKFaultSites));
+    MPM.add(createDynUntrustedAllocPostPass());
 
   MPM.add(createPostOrderFunctionAttrsLegacyPass());
   if (OptLevel > 2)
@@ -880,7 +874,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   // Run DynUntrustedAllocationPost after inliner to assign unique IDs to
   // allocation hooks.
   if (MPKPass)
-    PM.add(createDynUntrustedAllocPostPass(MPKFaultSites));
+    PM.add(createDynUntrustedAllocPostPass());
 
   PM.add(createPruneEHPass());   // Remove dead EH info.
 

@@ -16,7 +16,7 @@ void flushAllocs() {
     // TODO : This is for testing only to make sure JSON output works.
     __sanitizer::Report("INFO : Faulting alloc vector is empty, so we are "
                         "making a fault entry for testing.\n");
-    jAllocVec.push_back(toJSON(*AllocSite::error()));
+    jAllocVec.push_back(toJSON(AllocSite::error()));
 
     // __sanitizer::Report("INFO : No faulting instructions to export,
     // returning.\n"); return;
