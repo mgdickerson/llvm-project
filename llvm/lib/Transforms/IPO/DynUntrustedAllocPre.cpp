@@ -174,28 +174,23 @@ public:
     std::string TestDirectory = "TestResults";
     if (!llvm::sys::fs::is_directory(TestDirectory))
       llvm::sys::fs::create_directory(TestDirectory);
-
+  
     llvm::Expected<llvm::sys::fs::TempFile> PreStats =
-        llvm::sys::fs::TempFile::create(TestDirectory +
-                                        "/static-pre-%%%%%%%.stat");
+        llvm::sys::fs::TempFile::create(TestDirectory + "/static-pre-%%%%%%%.stat");
     if (!PreStats) {
-      LLVM_DEBUG(errs() << "Error making unique filename: "
-                        << llvm::toString(PreStats.takeError()) << "\n");
+      LLVM_DEBUG(errs() << "Error making unique filename: " << llvm::toString(PreStats.takeError()) << "\n");
       return;
     }
 
     llvm::raw_fd_ostream OS(PreStats->FD, /* shouldClose */ false);
     OS << "Total number of hook instructions: " << hook_count << "\n"
        << "Number of alloc hook instructions: " << alloc_hook_counter << "\n"
-       << "Number of realloc hook instructions: " << realloc_hook_counter
-       << "\n"
-       << "Number of dealloc hook instructions: " << dealloc_hook_counter
-       << "\n";
+       << "Number of realloc hook instructions: " << realloc_hook_counter << "\n"
+       << "Number of dealloc hook instructions: " << dealloc_hook_counter << "\n";
     OS.flush();
-
+  
     if (auto E = PreStats->keep()) {
-      LLVM_DEBUG(errs() << "Error keeping pre-stats file: "
-                        << llvm::toString(std::move(E)) << "\n");
+      LLVM_DEBUG(errs() << "Error keeping pre-stats file: " << llvm::toString(std::move(E)) << "\n");
       return;
     }
   }

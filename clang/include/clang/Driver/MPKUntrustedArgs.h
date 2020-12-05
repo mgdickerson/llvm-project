@@ -1,4 +1,4 @@
-//===--- MPKUntrustedArgs.h - Arguments for MPKUntrusted ----------------*- C++ -*---===//
+//===--- MPKUntrustedArgs.h - Arguments for MPKUntrusted ------------------ C++ -----===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -25,7 +25,6 @@ class ToolChain;
 class MPKUntrustedArgs {
   bool MPKUntrusted = false;
   bool MPKUntrustedRT = true;
-  std::vector<std::string> MPKFaultList;
 
 public:
   /// Parses the MPKUntrusted arguments from an argument list.

@@ -33,24 +33,20 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Path.h"
 
 #include <fstream>
 #include <map>
 #include <string>
 #include <utility>
-#include <vector>
 
 #define DEBUG_TYPE "dyn-untrusted"
 
 using namespace llvm;
 
 namespace {
-// Ensure we assign a unique ID to the same number of hooks as we made in the
-// Pre pass.
+// Ensure we assign a unique ID to the same number of hooks as we made in the Pre pass.
 uint64_t total_hooks = 0;
 // Count the number of modified Alloc instructions
 uint64_t modified_inst_count = 0;
@@ -125,54 +121,34 @@ public:
     if (filename.empty())
       return fault_set;
 
-    std::vector<std::string> fault_files;
-    if (llvm::sys::fs::is_directory(filename)) {
-      std::error_code EC;
-      for (llvm::sys::fs::directory_iterator F(filename, EC), E; F != E && !EC;
-           F.increment(EC)) {
-        auto file_extension = llvm::sys::path::extension(F->path());
-        if (StringSwitch<bool>(file_extension.lower())
-                .Case(".json", true)
-                .Default(false)) {
-          fault_files.push_back(F->path());
-        }
-      }
-    } else {
-      fault_files.push_back(filename);
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
+        MemoryBuffer::getFile(filename);
+    std::error_code ec = File.getError();
+
+    if (ec) {
+      LLVM_DEBUG(errs() << "File could not be read: " << ec.message() << "\n");
+      return fault_set;
     }
 
-    for (std::string file : fault_files) {
-      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
-          MemoryBuffer::getFile(file);
-      std::error_code ec = File.getError();
-
-      if (ec) {
-        LLVM_DEBUG(errs() << "File could not be read: " << ec.message()
-                          << "\n");
-        return fault_set;
-      }
-
-      Expected<json::Value> ParseResult =
-          json::parse(File.get().get()->getBuffer());
-      if (Error E = ParseResult.takeError()) {
-        LLVM_DEBUG(errs() << "Failed to Parse JSON array: " << E << "\n");
-        consumeError(std::move(E));
-        return fault_set;
-      }
-
-      if (!ParseResult->getAsArray()) {
-        LLVM_DEBUG(errs() << "Failed to get JSON Value as JSON array.\n");
-        return fault_set;
-      }
-
-      for (const auto &Alloc : *ParseResult->getAsArray()) {
-        FaultingSite FS;
-        if (fromJSON(Alloc, FS))
-          fault_set.push_back(FS);
-      }
+    Expected<json::Value> ParseResult =
+        json::parse(File.get().get()->getBuffer());
+    if (Error E = ParseResult.takeError()) {
+      LLVM_DEBUG(errs() << "Failed to Parse JSON array: " << E << "\n");
+      consumeError(std::move(E));
+      return fault_set;
     }
 
-    LLVM_DEBUG(errs() << "Returning successful fault_set.\n");
+    if (!ParseResult->getAsArray()) {
+      LLVM_DEBUG(errs() << "Failed to get JSON Value as JSON array.\n");
+      return fault_set;
+    }
+
+    for (const auto &Alloc : *ParseResult->getAsArray()) {
+      FaultingSite FS;
+      if (fromJSON(Alloc, FS))
+        fault_set.push_back(FS);
+    }
+
     return fault_set;
   }
 
@@ -296,25 +272,21 @@ public:
     std::string TestDirectory = "TestResults";
     if (!llvm::sys::fs::is_directory(TestDirectory))
       llvm::sys::fs::create_directory(TestDirectory);
-
+  
     llvm::Expected<llvm::sys::fs::TempFile> PreStats =
-        llvm::sys::fs::TempFile::create(TestDirectory +
-                                        "/static-post-%%%%%%%.stat");
+        llvm::sys::fs::TempFile::create(TestDirectory + "/static-post-%%%%%%%.stat");
     if (!PreStats) {
-      LLVM_DEBUG(errs() << "Error making unique filename: "
-                        << llvm::toString(PreStats.takeError()) << "\n");
+      LLVM_DEBUG(errs() << "Error making unique filename: " << llvm::toString(PreStats.takeError()) << "\n");
       return;
     }
 
     llvm::raw_fd_ostream OS(PreStats->FD, /* shouldClose */ false);
-    OS << "Number of alloc instructions modified to unsafe: "
-       << modified_inst_count << "\n"
+    OS << "Number of alloc instructions modified to unsafe: " << modified_inst_count << "\n"
        << "Total number hooks given a UniqueID: " << total_hooks << "\n";
     OS.flush();
-
+  
     if (auto E = PreStats->keep()) {
-      LLVM_DEBUG(errs() << "Error keeping pre-stats file: "
-                        << llvm::toString(std::move(E)) << "\n");
+      LLVM_DEBUG(errs() << "Error keeping pre-stats file: " << llvm::toString(std::move(E)) << "\n");
       return;
     }
   }

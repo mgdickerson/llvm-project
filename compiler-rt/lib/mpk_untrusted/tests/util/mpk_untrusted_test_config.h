@@ -1,4 +1,4 @@
-//===-- mpk_untrusted_test_config.h -----------------------------*- C++ -*-===//
+//===-- mpk_untrusted_test_config.h -------------------------------- C++ --===//
 //
 //                     The LLVM Compiler Infrastructure
 //

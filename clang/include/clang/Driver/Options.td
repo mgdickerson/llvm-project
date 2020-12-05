@@ -1182,11 +1182,6 @@ def fmpk_untrusted : Flag<["-"], "fmpk_untrusted">, Group<f_Group>,
 def fnompk_untrusted : Flag<["-"], "fno-mpk_untrusted">, Group<f_Group>,
   Flags<[CC1Option]>;
 
-def fmpk_fault_list :
-  JoinedOrSeparate<["-"], "fmpk-fault-list=">,
-  Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"File or Folder name containing faulting instructions.">;
-
 def fxray_instrument : Flag<["-"], "fxray-instrument">, Group<f_Group>,
   Flags<[CC1Option]>,
   HelpText<"Generate XRay instrumentation sleds on function entry and exit">;

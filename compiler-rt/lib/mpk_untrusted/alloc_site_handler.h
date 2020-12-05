@@ -30,12 +30,12 @@ public:
   AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID, uint32_t pkey = 0,
             alloc_set_type assocSet = alloc_set_type())
       : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{pkey}, associatedSet{
-                                                                  assocSet} {
+                                                               assocSet} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(uniqueID >= 0);
   }
-
+  
   /// Returns a shared pointer to the Error AllocSite.
   static std::shared_ptr<AllocSite> error() {
     if (!AllocErr)
@@ -90,8 +90,7 @@ public:
     if (it != AllocSiteFaultCount.end()) {
       it->second++;
     } else {
-      AllocSiteFaultCount.insert(
-          std::pair<std::shared_ptr<AllocSite>, uint64_t>(alloc, 1));
+      AllocSiteFaultCount.insert(std::pair<std::shared_ptr<AllocSite>, uint64_t>(alloc, 1));
     }
   }
 };
@@ -194,6 +193,7 @@ public:
     // Increment the count of the allocation faulting
     auto stats = StatsTracker::init();
     stats->incFaultCount(alloc);
+    
 
     for (auto assoc : alloc->getAssociatedSet()) {
       assoc->addPkey(pkey);
@@ -202,7 +202,7 @@ public:
     }
   }
 
-  std::set<AllocSite> &faultingAllocs() { return fault_set; }
+  std::set<AllocSite>& faultingAllocs() { return fault_set; }
 };
 } // namespace __mpk_untrusted
 extern "C" {

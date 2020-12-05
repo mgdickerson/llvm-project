@@ -165,7 +165,7 @@ static cl::opt<bool> MPKPass("mpk-pass", cl::init(false), cl::Hidden,
                                       "the MPK Untrusted Analysis pass."));
 
 static cl::opt<std::string>
-    MPKFaultSites("mpk-faults", cl::init(""), cl::Hidden,
+    MPKFaultSites("faults", cl::init(""), cl::Hidden,
                   cl::desc("Input for faulting allocations feedback file "
                            "and path for MPK Untrusted Analysis."),
                   cl::value_desc("filename"));
@@ -442,7 +442,10 @@ void PassManagerBuilder::populateModulePassManager(
 
   // Allow forcing function attributes as a debugging and tuning aid.
   MPM.add(createForceFunctionAttrsLegacyPass());
-  
+
+  // TODO : Might have to add Passes in this additionally if I want to see it in
+  // the LLVM IR output.
+
   // If all optimizations are disabled, just run the always-inline pass and,
   // if enabled, the function merging pass.
   if (OptLevel == 0) {

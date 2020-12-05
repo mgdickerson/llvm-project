@@ -10,13 +10,12 @@ std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
 
 extern "C" {
 void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
-  auto site = std::shared_ptr<__mpk_untrusted::AllocSite>(
-      new __mpk_untrusted::AllocSite(ptr, size, uniqueID));
+  auto site = std::shared_ptr<__mpk_untrusted::AllocSite>(new __mpk_untrusted::AllocSite(ptr, size, uniqueID));
   auto handler = __mpk_untrusted::AllocSiteHandler::init();
   handler->insertAllocSite(ptr, site);
   __sanitizer::Report("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
-
+  
   auto stats = __mpk_untrusted::StatsTracker::init();
   stats->allocHookCalls++;
   stats->AllocSitesFound.insert(site);
@@ -60,7 +59,7 @@ void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   handler->removeAllocSite(ptr);
   __sanitizer::Report("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
-
+  
   auto stats = __mpk_untrusted::StatsTracker::init();
   stats->deallocHookCalls++;
 }

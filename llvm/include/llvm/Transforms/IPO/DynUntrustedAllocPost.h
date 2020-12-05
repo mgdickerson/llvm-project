@@ -1,4 +1,4 @@
-//===- Transforms/UntrustedAlloc.h - UntrustedAlloc passes ------*- C++ -*-===//
+//===- Transforms/UntrustedAlloc.h - UntrustedAlloc passes --------- C++ --===//
 //
 //                     The LLVM Compiler Infrastructure
 //
