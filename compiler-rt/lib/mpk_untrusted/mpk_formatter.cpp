@@ -1,81 +1,35 @@
 #include "mpk_formatter.h"
-#include "alloc_site_handler.h"
-#include <bits/stdint-intn.h>
-#include <bits/stdint-uintn.h>
-#include <fstream>
 
 namespace __mpk_untrusted {
 
-#define ATTEMPTS 128
-
-bool makeUniqueFile(std::string Model, std::ofstream &OS) {
-  srand(time(NULL));
-  // Loop for number of attempts just in case level of entropy is to low
-  for (uint8_t attempt = 0; attempt != ATTEMPTS; ++attempt) {
-    std::string unique = Model;
-    for (uint32_t i=0, e = unique.length(); i!=e; ++i) {
-      if (unique[i] == '%')
-        unique[i] = "0123456789abcdef"[rand() & 15];
-    }
-    struct stat info;
-    // If file does not already exist, create and return ofstream
-    if (stat(unique.c_str(), &info) == -1) {
-      OS.open(unique, std::ios_base::trunc);
-      // Ensure we correctly opened OS ofstream
-      if (OS)
-        return true;
-    }
-  }
-
-  // Failed to make unique name
-  return false;
-}
-
-bool is_directory(std::string directory) {
-  struct stat info;
-  if (stat(directory.c_str(), &info) != 0) 
-    return false;
-  else if (info.st_mode & S_IFDIR)
-    return true;
-  else
-    return false;
-}
-
-// Function for handwriting the JSON output we want (to remove dependency on llvm/Support).
-void writeJSON(std::ofstream &OS, std::set<AllocSite>& faultSet) {
-  OS << "[\n";
-  int64_t items_remaining = faultSet.size();
-  for (auto fault : faultSet) {
-    --items_remaining;
-    if (items_remaining <= 0) {
-      // This is the last (or only) item, do not add comma
-      OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey() << " }\n";
-    } else {
-      OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey() << " },\n";
-    }
-  }
-  OS << "]\n";
-}
-
 bool writeUniqueFile(std::set<AllocSite>& faultSet) {
+  // TODO : How to guarantee we dump everything in the same testing folder.
   std::string TestDirectory = "TestResults";
-  if (!is_directory(TestDirectory)) {
-    if (mkdir(TestDirectory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
-      __sanitizer::Report("Failed to create TestResults directory.\n");
-      return false;
-    }
+  if (!llvm::sys::fs::is_directory(TestDirectory))
+    llvm::sys::fs::create_directory(TestDirectory);
+  
+  llvm::Expected<llvm::sys::fs::TempFile> TempFaults =
+      llvm::sys::fs::TempFile::create(TestDirectory + "/faulting-allocs-%%%%%%%.json");
+  if (!TempFaults) {
+    __sanitizer::Report("Error making unique filename: %s\n", llvm::toString(TempFaults.takeError()).c_str());
+    return false;
   }
 
-  std::ofstream OS;
-  if (!makeUniqueFile(TestDirectory + "/faulting-allocs-%%%%%%%.json", OS))
-    return false;
-  writeJSON(OS, faultSet);
+  std::vector<AllocSite> allocVec(faultSet.begin(), faultSet.end());
+  llvm::json::Value jFaultVec = llvm::json::Array(allocVec);
+  llvm::raw_fd_ostream OS(TempFaults->FD, /* shouldClose */ false);
+  OS << llvm::formatv("{0:2}", jFaultVec);
   OS.flush();
+  
+  llvm::Expected<llvm::sys::fs::TempFile> TempStats =
+      llvm::sys::fs::TempFile::create(TestDirectory + "/runtime-stats-%%%%%%%.stat");
+  if (!TempStats) {
+    __sanitizer::Report("Error making unique filename: %s\n", llvm::toString(TempStats.takeError()).c_str());
+    return false;
+  }
 
   auto stats = StatsTracker::init();
-  std::ofstream SOS;
-  if (!makeUniqueFile(TestDirectory + "/runtime-stats-%%%%%%%.stat", SOS))
-    return false;
+  llvm::raw_fd_ostream SOS(TempStats->FD, /* shouldClose */ false);
   SOS << "Number of Unique AllocSites Found: " << stats->AllocSitesFound.size() << "\n"
       << "Number of Unique ReallocSites Found: " << stats->ReallocSitesFound.size() << "\n"
       << "Number of Times allocHook Called: " << stats->allocHookCalls << "\n"
@@ -85,6 +39,16 @@ bool writeUniqueFile(std::set<AllocSite>& faultSet) {
     SOS << "AllocSite(" << key_value.first->id() << ") faults: " << key_value.second << "\n";
   }
   SOS.flush();
+
+  if (auto E = TempFaults->keep()) {
+    __sanitizer::Report("Error keeping unique faults file: %s\n", llvm::toString(std::move(E)).c_str());
+    return false;
+  }
+  if (auto E = TempStats->keep()) {
+    __sanitizer::Report("Error keeping runtime stats file: %s\n", llvm::toString(std::move(E)).c_str());
+    return false;
+  }
+
   return true;
 }
 
@@ -100,6 +64,13 @@ void flushAllocs() {
   // Simple method that requires either handling multiple files or a script for combining them later.
   if (!writeUniqueFile(handler->faultingAllocs()))
     __sanitizer::Report("ERROR : Unable to successfully write unique files for given program run.\n");
+}
+
+llvm::json::Value toJSON(AllocSite as) {
+  return llvm::json::Object{
+      {"id", as.id()},
+      {"pkey", as.getPkey()},
+  };
 }
 
 } // namespace __mpk_untrusted

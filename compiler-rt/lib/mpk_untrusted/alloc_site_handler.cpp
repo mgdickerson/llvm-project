@@ -10,13 +10,13 @@ std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
 
 extern "C" {
 void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
-  auto site = std::shared_ptr<__mpk_untrusted::AllocSite>(new __mpk_untrusted::AllocSite(ptr, size, uniqueID));
-  auto handler = __mpk_untrusted::AllocSiteHandler::init();
+  auto site = std::shared_ptr<AllocSite>(new AllocSite(ptr, size, uniqueID));
+  auto handler = AllocSiteHandler::init();
   handler->insertAllocSite(ptr, site);
   __sanitizer::Report("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
   
-  auto stats = __mpk_untrusted::StatsTracker::init();
+  auto stats = StatsTracker::init();
   stats->allocHookCalls++;
   stats->AllocSitesFound.insert(site);
 }
@@ -28,7 +28,7 @@ void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
 void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
                  int64_t oldSize, int64_t uniqueID) {
   // Get the AllocSiteHandler and the old AllocSite for the associated oldPtr.
-  auto handler = __mpk_untrusted::AllocSiteHandler::init();
+  auto handler = AllocSiteHandler::init();
   auto assocSite = handler->getAllocSite(oldPtr);
 
   // Get the previously associated set from the site being re-allocated and
@@ -42,14 +42,14 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // Create new Allocation Site for given pointer, adding the previous
   // Allocation Site and its associated set to the new AllocSite's associated
   // set.
-  auto site = std::shared_ptr<__mpk_untrusted::AllocSite>(
-      new __mpk_untrusted::AllocSite(newPtr, newSize, uniqueID, 0, assocSet));
+  auto site = std::shared_ptr<AllocSite>(
+      new AllocSite(newPtr, newSize, uniqueID, 0, assocSet));
   handler->insertAllocSite(newPtr, site);
   __sanitizer::Report(
       "INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
       newPtr, uniqueID);
 
-  auto stats = __mpk_untrusted::StatsTracker::init();
+  auto stats = StatsTracker::init();
   stats->reallocHookCalls++;
   stats->ReallocSitesFound.insert(site);
 }
@@ -60,7 +60,8 @@ void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   __sanitizer::Report("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
   
-  auto stats = __mpk_untrusted::StatsTracker::init();
+  auto stats = StatsTracker::init();
   stats->deallocHookCalls++;
 }
 }
+
