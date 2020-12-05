@@ -6,7 +6,6 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#define PAGE_SIZE 4096
 int pkey;
 
 static inline void __wrpkru(unsigned int pkru) {
