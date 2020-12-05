@@ -2,7 +2,6 @@
 
 namespace __mpk_untrusted {
 
-std::shared_ptr<StatsTracker> StatsTracker::handle = nullptr;
 std::shared_ptr<AllocSite> AllocSite::AllocErr = nullptr;
 std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
 
@@ -15,10 +14,6 @@ void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   handler->insertAllocSite(ptr, site);
   __sanitizer::Report("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
-  
-  auto stats = StatsTracker::init();
-  stats->allocHookCalls++;
-  stats->AllocSitesFound.insert(site);
 }
 
 /// reallocHook will remove the previous mapping from oldPtr -> oldAllocSite,
@@ -48,10 +43,6 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   __sanitizer::Report(
       "INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
       newPtr, uniqueID);
-
-  auto stats = StatsTracker::init();
-  stats->reallocHookCalls++;
-  stats->ReallocSitesFound.insert(site);
 }
 
 void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
@@ -59,9 +50,6 @@ void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   handler->removeAllocSite(ptr);
   __sanitizer::Report("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr,
                       uniqueID);
-  
-  auto stats = StatsTracker::init();
-  stats->deallocHookCalls++;
 }
 }
 

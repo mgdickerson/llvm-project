@@ -65,36 +65,6 @@ public:
   bool operator<(const AllocSite &ac) const { return uniqueID < ac.id(); }
 };
 
-class StatsTracker {
-private:
-  static std::shared_ptr<StatsTracker> handle;
-  StatsTracker() = default;
-
-public:
-  uint64_t allocHookCalls;
-  uint64_t reallocHookCalls;
-  uint64_t deallocHookCalls;
-  std::map<std::shared_ptr<AllocSite>, uint64_t> AllocSiteFaultCount;
-  std::set<std::shared_ptr<AllocSite>> AllocSitesFound;
-  std::set<std::shared_ptr<AllocSite>> ReallocSitesFound;
-
-  static std::shared_ptr<StatsTracker> init() {
-    if (!handle)
-      handle = std::shared_ptr<StatsTracker>(new StatsTracker());
-
-    return handle;
-  }
-
-  void incFaultCount(std::shared_ptr<AllocSite> alloc) {
-    auto it = AllocSiteFaultCount.find(alloc);
-    if (it != AllocSiteFaultCount.end()) {
-      it->second++;
-    } else {
-      AllocSiteFaultCount.insert(std::pair<std::shared_ptr<AllocSite>, uint64_t>(alloc, 1));
-    }
-  }
-};
-
 class AllocSiteHandler {
 private:
   // Singleton AllocSiteHandler pointer
@@ -154,7 +124,7 @@ public:
     if (map_iter != allocation_map.end()) {
       // Found valid iterator, check for exact match first
       if (map_iter->first == ptr) {
-        // For an exact match, we can return the found allocation site
+        // For an exact match, we can return the found alloction site
         return map_iter->second;
       }
 
@@ -190,15 +160,9 @@ public:
 
     fault_set.insert(*alloc);
 
-    // Increment the count of the allocation faulting
-    auto stats = StatsTracker::init();
-    stats->incFaultCount(alloc);
-    
-
     for (auto assoc : alloc->getAssociatedSet()) {
       assoc->addPkey(pkey);
       fault_set.insert(*assoc);
-      stats->incFaultCount(assoc);
     }
   }
 

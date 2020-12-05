@@ -36,8 +36,8 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 
-#include <fstream>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -151,9 +151,6 @@ public:
   }
 
   void assignUniqueIDs(Module &M) {
-    // Ensure we assign a unique ID to the same number of hooks as we made in the Pre pass.
-    uint64_t total_hooks = 0;
-
     std::vector<Function *> WorkList;
     for (Function &F : M) {
       if (!F.isDeclaration())
@@ -190,7 +187,6 @@ public:
           auto id = IDG.getConstID(M);
 
           CS.setArgument(index, id);
-          ++total_hooks;
           LLVM_DEBUG(errs() << "modified callsite:\n");
           LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
 
@@ -210,14 +206,6 @@ public:
         }
       }
     }
-
-    // TODO (mitch) : This current includes the file extension as part of the name,
-    // might want to clean that out if it becomes problematic.
-    LLVM_DEBUG(errs() << "Module Name: " << M.getName() << "\n");
-    std::string statName = M.getName().str() + ".StaticStats.txt";
-    std::ofstream statsFile;
-    statsFile.open(statName, std::ios_base::app);
-    statsFile << "Total number hooks given a UniqueID: " << total_hooks << "\n";
   }
 
   void fixFaultedAllocations(Module &M, std::vector<FaultingSite> FS) {
@@ -225,16 +213,7 @@ public:
       return;
     }
 
-    // Count the number of modified Alloc instructions
-    uint64_t modified_inst_count = 0;
-
-    // Currently only patching __rust_alloc and __rust_alloc_zeroed
-    const std::map<std::string, std::string> AllocReplacementMap = {
-      {"__rust_alloc", "__rust_untrusted_alloc"},
-      {"__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed"},
-    };
-
-    for (auto fsite : FS) { 
+    for (auto fsite : FS) {
       auto map_iter = alloc_map.find(fsite.uniqueID);
       if (map_iter == alloc_map.end()) {
         LLVM_DEBUG(errs() << "Cannot find unique allocation id: "
@@ -243,45 +222,8 @@ public:
       }
 
       Instruction *I = map_iter->second;
-      // We have already checked when adding instructions to the Faulting Set that they are all CallSites.
-      CallSite AllocInst(I);
-
-      auto F = AllocInst.getCalledFunction();
-      if (!F) {
-        LLVM_DEBUG(errs() << "CallSite does not contain a valid function call: " << *I << "\n");
-        continue;
-      }
-
-      std::string ReplacementName;
-      auto replIter = AllocReplacementMap.find(F->getName().str());
-
-      if (replIter != AllocReplacementMap.end()) {
-        ReplacementName = replIter->second;
-      } else {
-        continue;
-      }
-
-      Function *UntrustedAlloc = M.getFunction(ReplacementName);
-      if (!UntrustedAlloc) {
-        LLVM_DEBUG(errs() << "ERROR while creating patch: Could not find replacement: "
-          << ReplacementName << "\n");
-        continue;
-      }
-
-      if (CallInst *call = dyn_cast<CallInst>(I)) {
-        LLVM_DEBUG(errs() << "Modifying CallInstruction: " << *call << "\n");
-        call->setCalledFunction(UntrustedAlloc);
-        ++modified_inst_count;
-      }
+      // TODO : We need to alter this instruction somehow.
     }
-
-    // TODO (mitch) : This current includes the file extension as part of the name,
-    // might want to clean that out if it becomes problematic.
-    LLVM_DEBUG(errs() << "Module Name: " << M.getName() << "\n");
-    std::string statName = M.getName().str() + ".StaticStats.txt";
-    std::ofstream statsFile;
-    statsFile.open(statName, std::ios_base::app);
-    statsFile << "Number of alloc instructions modified to unsafe: " << modified_inst_count << "\n";
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -306,7 +248,7 @@ INITIALIZE_PASS_END(DynUntrustedAllocPost, "dyn-untrusted-post",
                     "function hooks for tracking allocation IDs.",
                     false, false)
 
-ModulePass *llvm::createDynUntrustedAllocPostPass(std::string fault_path = "") {
+ModulePass *llvm::createDynUntrustedAllocPostPass(std::string fault_path) {
   return new DynUntrustedAllocPost(fault_path);
 }
 

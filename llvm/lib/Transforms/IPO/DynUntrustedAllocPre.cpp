@@ -31,8 +31,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
 
-#include <fstream>
 #include <set>
 #include <string>
 
@@ -41,11 +41,6 @@
 using namespace llvm;
 
 namespace {
-// Counters for tracking each type of hook separately
-uint64_t alloc_hook_counter = 0;
-uint64_t realloc_hook_counter = 0;
-uint64_t dealloc_hook_counter = 0;
-
 ConstantInt *getDummyID(Module &M) {
   return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
 }
@@ -114,18 +109,15 @@ public:
 
     if (F == M.getFunction("__rust_alloc") ||
         F == M.getFunction("__rust_alloc_zeroed")) {
-      alloc_hook_counter++;
       return CallInst::Create(
           (Function *)allocHook,
           {CS->getInstruction(), CS->getArgument(0), getDummyID(M)});
     } else if (F == M.getFunction("__rust_realloc")) {
-      realloc_hook_counter++;
       return CallInst::Create((Function *)reallocHook,
                               {CS->getInstruction(), CS->getArgument(3),
                                CS->getArgument(0), CS->getArgument(1),
                                getDummyID(M)});
     } else if (F == M.getFunction("__rust_dealloc")) {
-      dealloc_hook_counter++;
       return CallInst::Create(
           (Function *)deallocHook,
           {CS->getArgument(0), CS->getArgument(1), getDummyID(M)});
@@ -135,9 +127,6 @@ public:
   }
 
   void hookFunctions(Module &M) {
-    // Tracker to count number of hook calls we create.
-    uint64_t hook_count = 0;
-
     for (Function &F : M) {
       if (F.isDeclaration())
         continue;
@@ -159,21 +148,9 @@ public:
           BasicBlock::iterator bbIter((Instruction *)CS.getInstruction());
           bbIter++;
           BB->getInstList().insert(bbIter, newHook);
-          ++hook_count;
         }
       }
     }
-
-    // TODO (mitch) : This current includes the file extension as part of the name,
-    // might want to clean that out if it becomes problematic.
-    LLVM_DEBUG(errs() << "Module Name: " << M.getName() << "\n");
-    std::string statName = M.getName().str() + ".StaticStats.txt";
-    std::ofstream statsFile;
-    statsFile.open(statName, std::ios_base::trunc);
-    statsFile << "Total number of hook instructions: " << hook_count << "\n"
-              << "Number of alloc hook instructions: " << alloc_hook_counter << "\n"
-              << "Number of realloc hook instructions: " << realloc_hook_counter << "\n"
-              << "Number of dealloc hook instructions: " << dealloc_hook_counter << "\n";
   }
 
   /// Iterate all Functions of Module M, remove NoInline attribute from
