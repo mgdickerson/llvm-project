@@ -59,6 +59,8 @@ uint64_t modified_inst_count = 0;
 const static std::map<std::string, int> patchArgIndexMap = {
     {"allocHook", 2}, {"reallocHook", 4}, {"deallocHook", 2}};
 
+std::vector<Instruction *> hookList;
+
 class IDGenerator {
   uint64_t id;
 
@@ -81,10 +83,13 @@ struct FaultingSite {
 class DynUntrustedAllocPost : public ModulePass {
 public:
   static char ID;
-  std::string filename;
+  std::string mpk_profile_path;
+  bool remove_hooks;
 
-  DynUntrustedAllocPost(std::string fault_path = "")
-      : ModulePass(ID), filename(fault_path) {
+  DynUntrustedAllocPost(std::string mpk_profile_path = "",
+                        bool remove_hooks = false)
+      : ModulePass(ID), mpk_profile_path(mpk_profile_path),
+        remove_hooks(remove_hooks) {
     initializeDynUntrustedAllocPostPass(*PassRegistry::getPassRegistry());
   }
   virtual ~DynUntrustedAllocPost() = default;
@@ -94,7 +99,12 @@ public:
     // Assign a unique ID in a deterministic pattern to ensure UniqueID is
     // consistent between runs.
     assignUniqueIDs(M);
-    fixFaultedAllocations(M, getFaultingAllocList());
+    if (!mpk_profile_path.empty())
+      fixFaultedAllocations(M, getFaultingAllocList());
+
+    if (remove_hooks)
+      removeHooks();
+
     printStats(M);
 
     return true;
@@ -122,14 +132,14 @@ public:
   std::vector<FaultingSite> getFaultingAllocList() {
     std::vector<FaultingSite> fault_set;
     // If no path provided, return empty set.
-    if (filename.empty())
+    if (mpk_profile_path.empty())
       return fault_set;
 
     std::vector<std::string> fault_files;
-    if (llvm::sys::fs::is_directory(filename)) {
+    if (llvm::sys::fs::is_directory(mpk_profile_path)) {
       std::error_code EC;
-      for (llvm::sys::fs::directory_iterator F(filename, EC), E; F != E && !EC;
-           F.increment(EC)) {
+      for (llvm::sys::fs::directory_iterator F(mpk_profile_path, EC), E;
+           F != E && !EC; F.increment(EC)) {
         auto file_extension = llvm::sys::path::extension(F->path());
         if (StringSwitch<bool>(file_extension.lower())
                 .Case(".json", true)
@@ -138,7 +148,7 @@ public:
         }
       }
     } else {
-      fault_files.push_back(filename);
+      fault_files.push_back(mpk_profile_path);
     }
 
     for (std::string file : fault_files) {
@@ -212,8 +222,9 @@ public:
 
           auto index = index_iter->second;
 
-          BasicBlock::iterator iter(CS.getInstruction());
-          auto prev_inst = BB->getInstList().getPrevNode(*CS.getInstruction());
+          auto callInst = CS.getInstruction();
+          BasicBlock::iterator iter(callInst);
+          auto prev_inst = BB->getInstList().getPrevNode(*callInst);
           auto id = IDG.getConstID(M);
 
           CS.setArgument(index, id);
@@ -234,6 +245,10 @@ public:
                             << "\n");
           alloc_map.insert(std::pair<uint64_t, Instruction *>(
               id->getZExtValue(), prev_inst));
+
+          // If we are on final instrumentation, add to hookList to remove.
+          if (remove_hooks)
+            hookList.push_back(callInst);
         }
       }
     }
@@ -292,6 +307,12 @@ public:
     }
   }
 
+  void removeHooks() {
+    for (auto inst : hookList) {
+      inst->removeFromParent();
+    }
+  }
+
   void printStats(Module &M) {
     std::string TestDirectory = "TestResults";
     if (!llvm::sys::fs::is_directory(TestDirectory))
@@ -341,13 +362,15 @@ INITIALIZE_PASS_END(DynUntrustedAllocPost, "dyn-untrusted-post",
                     "function hooks for tracking allocation IDs.",
                     false, false)
 
-ModulePass *llvm::createDynUntrustedAllocPostPass(std::string fault_path = "") {
-  return new DynUntrustedAllocPost(fault_path);
+ModulePass *
+llvm::createDynUntrustedAllocPostPass(std::string mpk_profile_path = "",
+                                      bool remove_hooks = false) {
+  return new DynUntrustedAllocPost(mpk_profile_path, remove_hooks);
 }
 
 PreservedAnalyses DynUntrustedAllocPostPass::run(Module &M,
                                                  ModuleAnalysisManager &AM) {
-  DynUntrustedAllocPost dyn(FaultPath);
+  DynUntrustedAllocPost dyn(MPKProfilePath, RemoveHooks);
   if (!dyn.runOnModule(M)) {
     return PreservedAnalyses::all();
   }

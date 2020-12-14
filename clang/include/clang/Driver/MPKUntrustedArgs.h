@@ -24,8 +24,8 @@ class ToolChain;
 
 class MPKUntrustedArgs {
   bool MPKUntrusted = false;
-  bool MPKUntrustedRT = true;
-  std::vector<std::string> MPKFaultList;
+  bool MPKUntrustedRT = false;
+  std::vector<std::string> MPKProfilePath;
 
 public:
   /// Parses the MPKUntrusted arguments from an argument list.

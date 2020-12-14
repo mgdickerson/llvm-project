@@ -25,6 +25,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
     raise(sig);
     return;
   }
+  __sanitizer::Report("INFO : Handling SEGV_PKUERR.\n");
 
   // Obtains pointer causing fault
   void *ptr = si->si_addr;

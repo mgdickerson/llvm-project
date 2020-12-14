@@ -268,7 +268,8 @@ ModulePass *createUntrustedAllocPass();
 ModulePass *createDynUntrustedAllocPrePass();
 
 // Patches Function Hooks with Unique Identifier post-Inliner
-ModulePass *createDynUntrustedAllocPostPass(std::string fault_path);
+ModulePass *createDynUntrustedAllocPostPass(std::string mpk_profile_path = "",
+                                            bool remove_hooks = false);
 
 //===----------------------------------------------------------------------===//
 // SampleProfilePass - Loads sample profile data from disk and generates

@@ -30,15 +30,18 @@ class ModulePass;
 class DynUntrustedAllocPostPass
     : public PassInfoMixin<DynUntrustedAllocPostPass> {
 public:
-  DynUntrustedAllocPostPass(std::string fault_path = "")
-      : FaultPath(fault_path) {}
+  DynUntrustedAllocPostPass(std::string mpk_profile_path = "",
+                            bool remove_hooks = false)
+      : MPKProfilePath(mpk_profile_path), RemoveHooks(remove_hooks) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
 private:
-  std::string FaultPath;
+  std::string MPKProfilePath;
+  bool RemoveHooks;
 };
 
-ModulePass *createDynUntrustedAllocPostPass(std::string fault_path);
+ModulePass *createDynUntrustedAllocPostPass(std::string mpk_profile_path,
+                                            bool remove_hooks);
 
 void initializeDynUntrustedAllocPostPass(PassRegistry &Registry);
 } // namespace llvm
