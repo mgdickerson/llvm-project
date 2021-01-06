@@ -5,9 +5,10 @@
 
 #include <cstring>
 
+extern "C" {
 /// Constructor will set up the segMPKHandle fault handler, and additionally
 /// the stepMPKHandle when testing single stepping.
-static void __attribute__((constructor)) mpk_untrusted_constructor() {
+void mpk_untrusted_constructor() {
   __sanitizer::Report("INFO : Initializing and replacing segFaultHandler.\n");
 
   // Set up our fault handler
@@ -32,4 +33,5 @@ static void __attribute__((constructor)) mpk_untrusted_constructor() {
   // Add final action flushAllocs() to export faulting allocations
   // to a JSON file.
   std::atexit(__mpk_untrusted::flushAllocs);
+}
 }

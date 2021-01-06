@@ -2,6 +2,7 @@
 #define ALLOCSITEHANDLER_H
 
 #include "sanitizer_common/sanitizer_common.h"
+#include "mpk_untrusted.h"
 
 #include <cassert>
 #include <map>
@@ -106,6 +107,8 @@ private:
   std::set<AllocSite> fault_set;
   // Thread safety mutex
   std::mutex mx;
+  //  Sigfault Handler Set
+  bool SFH = false;
   AllocSiteHandler() = default;
 
 public:
@@ -114,6 +117,13 @@ public:
   static std::shared_ptr<AllocSiteHandler> init() {
     if (!handle) {
       handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
+
+      // Initialization of AllocSiteHandler also initializes SFH
+      const std::lock_guard<std::mutex> lock(handle->mx);
+      if (!handle->SFH) {
+        mpk_untrusted_constructor();
+        handle->SFH = true;
+      }
     }
 
     return handle;
