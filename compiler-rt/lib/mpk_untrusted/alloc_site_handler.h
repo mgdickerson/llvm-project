@@ -37,13 +37,10 @@ public:
     assert(uniqueID >= 0);
   }
 
-  /// Returns a shared pointer to the Error AllocSite.
-  static std::shared_ptr<AllocSite> error() {
-    if (!AllocErr)
-      AllocErr = std::shared_ptr<AllocSite>(new AllocSite());
+  static void initError();
 
-    return AllocErr;
-  }
+  /// Returns a shared pointer to the Error AllocSite.
+  static std::shared_ptr<AllocSite> error();
 
   bool containsPtr(rust_ptr ptrCmp) {
     // TODO : Note, might be important to cast pointers to uintptr_t type for
@@ -79,12 +76,8 @@ public:
   std::set<std::shared_ptr<AllocSite>> AllocSitesFound;
   std::set<std::shared_ptr<AllocSite>> ReallocSitesFound;
 
-  static std::shared_ptr<StatsTracker> init() {
-    if (!handle)
-      handle = std::shared_ptr<StatsTracker>(new StatsTracker());
-
-    return handle;
-  }
+  static void init();
+  static std::shared_ptr<StatsTracker> get();
 
   void incFaultCount(std::shared_ptr<AllocSite> alloc) {
     auto it = AllocSiteFaultCount.find(alloc);
@@ -107,27 +100,13 @@ private:
   std::set<AllocSite> fault_set;
   // Thread safety mutex
   std::mutex mx;
-  //  Sigfault Handler Set
-  bool SFH = false;
   AllocSiteHandler() = default;
 
 public:
   ~AllocSiteHandler() {}
 
-  static std::shared_ptr<AllocSiteHandler> init() {
-    if (!handle) {
-      handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
-
-      // Initialization of AllocSiteHandler also initializes SFH
-      const std::lock_guard<std::mutex> lock(handle->mx);
-      if (!handle->SFH) {
-        mpk_untrusted_constructor();
-        handle->SFH = true;
-      }
-    }
-
-    return handle;
-  }
+  static void init();
+  static std::shared_ptr<AllocSiteHandler> get();
 
   bool empty() { return allocation_map.empty(); }
 
@@ -202,7 +181,7 @@ public:
     fault_set.insert(*alloc);
 
     // Increment the count of the allocation faulting
-    auto stats = StatsTracker::init();
+    auto stats = StatsTracker::get();
     stats->incFaultCount(alloc);
 
     for (auto assoc : alloc->getAssociatedSet()) {

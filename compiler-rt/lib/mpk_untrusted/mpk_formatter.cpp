@@ -87,7 +87,7 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
   writeJSON(OS, faultSet);
   OS.flush();
 
-  auto stats = StatsTracker::init();
+  auto stats = StatsTracker::get();
   auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
   if (!uniqueSOS)
     return false;
@@ -112,7 +112,7 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
 // Flush Allocs is to be called on program exit to flush all faulting
 // allocations to disk/file.
 void flushAllocs() {
-  auto handler = AllocSiteHandler::init();
+  auto handler = AllocSiteHandler::get();
   if (handler->faultingAllocs().empty()) {
     __sanitizer::Report(
         "INFO : No faulting instructions to export, returning.\n");

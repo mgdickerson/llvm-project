@@ -34,7 +34,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   uint32_t pkey = si->si_pkey;
 
   // Get Alloc Site information from the handler.
-  auto handler = __mpk_untrusted::AllocSiteHandler::init();
+  auto handler = __mpk_untrusted::AllocSiteHandler::get();
   handler->addFaultAlloc((rust_ptr)ptr, pkey);
   __sanitizer::Report(
       "INFO : Got Allocation Site (%d) for address: %p with pkey: %d.\n",
