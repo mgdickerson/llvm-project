@@ -37,6 +37,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 #include <fstream>
 #include <map>
@@ -48,6 +49,17 @@
 
 using namespace llvm;
 
+static cl::opt<std::string>
+    MPKTestProfilePath("mpk-test-profile-path", cl::init(""), cl::Hidden,
+                       cl::value_desc("filename"),
+                       cl::desc("Specify the path of profile data file. This is"
+                                "mainly for test purpose."));
+
+static cl::opt<bool>
+    MPKTestRemoveHooks("mpk-test-remove-hooks", cl::init(false), cl::Hidden,
+                       cl::desc("Remove hook instructions. This is mainly"
+                                "for test purpose."));
+
 namespace {
 // Ensure we assign a unique ID to the same number of hooks as we made in the
 // Pre pass.
@@ -58,6 +70,13 @@ uint64_t modified_inst_count = 0;
 /// A mapping between hook function and the position of the UniqueID argument.
 const static std::map<std::string, int> patchArgIndexMap = {
     {"allocHook", 2}, {"reallocHook", 4}, {"deallocHook", 2}};
+
+// Currently only patching __rust_alloc and __rust_alloc_zeroed
+const static std::map<std::string, std::string> AllocReplacementMap = {
+    {"__rust_alloc", "__rust_untrusted_alloc"},
+    {"__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed"},
+    {"__rust_realloc", "__rust_untrusted_realloc"},
+};
 
 std::vector<Instruction *> hookList;
 
@@ -95,15 +114,21 @@ public:
   virtual ~DynUntrustedAllocPost() = default;
 
   bool runOnModule(Module &M) override {
+    // Additional flags for easier testing with opt.
+    if (mpk_profile_path.empty() && !MPKTestProfilePath.empty())
+      mpk_profile_path = MPKTestProfilePath;
+    if (MPKTestRemoveHooks)
+      remove_hooks = MPKTestRemoveHooks;
+
     // Post inliner pass, iterate over all functions and find hook CallSites.
     // Assign a unique ID in a deterministic pattern to ensure UniqueID is
     // consistent between runs.
     assignUniqueIDs(M);
-    if (!mpk_profile_path.empty())
-      fixFaultedAllocations(M, getFaultingAllocList());
 
     if (remove_hooks)
-      removeHooks();
+      removeHooks(M);
+
+    removeInlineAttr(M);
 
     printStats(M);
 
@@ -129,12 +154,7 @@ public:
     return O && temp_id_result && temp_pkey_result;
   }
 
-  std::vector<FaultingSite> getFaultingAllocList() {
-    std::vector<FaultingSite> fault_set;
-    // If no path provided, return empty set.
-    if (mpk_profile_path.empty())
-      return fault_set;
-
+  std::vector<std::string> getFaultPaths() {
     std::vector<std::string> fault_files;
     if (llvm::sys::fs::is_directory(mpk_profile_path)) {
       std::error_code EC;
@@ -151,39 +171,53 @@ public:
       fault_files.push_back(mpk_profile_path);
     }
 
-    for (std::string file : fault_files) {
-      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
-          MemoryBuffer::getFile(file);
-      std::error_code ec = File.getError();
+    return fault_files;
+  }
 
-      if (ec) {
-        LLVM_DEBUG(errs() << "File could not be read: " << ec.message()
-                          << "\n");
-        return fault_set;
-      }
+  Optional<json::Array> parseJSONArrayFile(llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File) {
+    std::error_code ec = File.getError();
+    if (ec) {
+      LLVM_DEBUG(errs() << "File could not be read: " << ec.message()
+                        << "\n");
+      return None;
+    }
 
-      Expected<json::Value> ParseResult =
-          json::parse(File.get().get()->getBuffer());
-      if (Error E = ParseResult.takeError()) {
-        LLVM_DEBUG(errs() << "Failed to Parse JSON array: " << E << "\n");
-        consumeError(std::move(E));
-        return fault_set;
-      }
+    Expected<json::Value> ParseResult =
+        json::parse(File.get().get()->getBuffer());
+    if (Error E = ParseResult.takeError()) {
+      LLVM_DEBUG(errs() << "Failed to Parse JSON array: " << E << "\n");
+      consumeError(std::move(E));
+      return None;
+    }
 
-      if (!ParseResult->getAsArray()) {
-        LLVM_DEBUG(errs() << "Failed to get JSON Value as JSON array.\n");
-        return fault_set;
-      }
+    if (!ParseResult->getAsArray()) {
+      LLVM_DEBUG(errs() << "Failed to get JSON Value as JSON array.\n");
+      return None;
+    }
 
-      for (const auto &Alloc : *ParseResult->getAsArray()) {
+    return *ParseResult->getAsArray();
+  }
+
+  std::map<uint64_t, FaultingSite> getFaultingAllocMap() {
+    std::map<uint64_t, FaultingSite> fault_map;
+    // If no path provided, return empty set.
+    if (mpk_profile_path.empty())
+      return fault_map;
+
+    for (std::string path : getFaultPaths()) {
+      auto ParseResult = parseJSONArrayFile(MemoryBuffer::getFile(path));
+      if (!ParseResult)
+        continue;
+
+      for (const auto &Alloc : ParseResult.getValue()) {
         FaultingSite FS;
         if (fromJSON(Alloc, FS))
-          fault_set.push_back(FS);
+          fault_map.insert(std::pair<uint64_t, FaultingSite>(FS.uniqueID, FS));
       }
     }
 
     LLVM_DEBUG(errs() << "Returning successful fault_set.\n");
-    return fault_set;
+    return fault_map;
   }
 
   static bool funcSort(Function *F1, Function *F2) {
@@ -200,6 +234,8 @@ public:
     std::sort(WorkList.begin(), WorkList.end(), funcSort);
 
     LLVM_DEBUG(errs() << "Search for modified functions!\n");
+
+    auto fault_map = getFaultingAllocMap();
 
     for (Function *F : WorkList) {
       ReversePostOrderTraversal<Function *> RPOT(F);
@@ -222,94 +258,88 @@ public:
 
           auto index = index_iter->second;
 
+          // Set UniqueID for hook function
           auto callInst = CS.getInstruction();
-          BasicBlock::iterator iter(callInst);
-          auto prev_inst = BB->getInstList().getPrevNode(*callInst);
           auto id = IDG.getConstID(M);
-
           CS.setArgument(index, id);
+
           ++total_hooks;
-          LLVM_DEBUG(errs() << "modified callsite:\n");
-          LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
 
-          if (!prev_inst)
-            continue;
-
-          CallSite CSPrev(prev_inst);
-          if (!CSPrev)
-            continue;
-
-          LLVM_DEBUG(errs() << "Adding: "
-                            << CSPrev.getCalledFunction()->getName().data()
-                            << " callsite for allocID: " << id->getZExtValue()
-                            << "\n");
-          alloc_map.insert(std::pair<uint64_t, Instruction *>(
-              id->getZExtValue(), prev_inst));
-
-          // If we are on final instrumentation, add to hookList to remove.
           if (remove_hooks)
             hookList.push_back(callInst);
+
+          // If provided a valid path, modify given instruction
+          if (!mpk_profile_path.empty()) {
+            // Get Call Instr that hook references
+            auto allocFunc = CS.getArgument(0);
+            if (isa<CallBase>(allocFunc)) {
+              CallBase *allocInst = cast<CallBase>(allocFunc);
+
+              // Check to see if ID is in fault set for patching
+              auto map_iter = fault_map.find(id->getZExtValue());
+              if (map_iter == fault_map.end())
+                continue;
+
+              LLVM_DEBUG(errs() << "modified callsite:\n");
+              LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
+
+              patchInstruction(M, allocInst);
+            }
+          }
         }
       }
     }
   }
 
-  void fixFaultedAllocations(Module &M, std::vector<FaultingSite> FS) {
-    if (FS.empty()) {
+  void patchInstruction(Module &M, CallBase *inst) {
+    auto calledFuncName = inst->getCalledFunction()->getName().str();
+    auto repl_iter = AllocReplacementMap.find(calledFuncName);
+    if (repl_iter == AllocReplacementMap.end())
+      return;
+
+    auto replacementFunctionName = repl_iter->second;
+
+    Function *repl_func = M.getFunction(replacementFunctionName);
+    if (!repl_func) {
+      LLVM_DEBUG(
+          errs() << "ERROR while creating patch: Could not find replacement: "
+                 << replacementFunctionName << "\n");
       return;
     }
 
-    // Currently only patching __rust_alloc and __rust_alloc_zeroed
-    const std::map<std::string, std::string> AllocReplacementMap = {
-      {"__rust_alloc", "__rust_untrusted_alloc"},
-      {"__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed"},
-    };
-
-    for (auto fsite : FS) { 
-      auto map_iter = alloc_map.find(fsite.uniqueID);
-      if (map_iter == alloc_map.end()) {
-        LLVM_DEBUG(errs() << "Cannot find unique allocation id: "
-                          << fsite.uniqueID << "\n");
-        continue;
-      }
-
-      Instruction *I = map_iter->second;
-      // We have already checked when adding instructions to the Faulting Set that they are all CallSites.
-      CallSite AllocInst(I);
-
-      auto F = AllocInst.getCalledFunction();
-      if (!F) {
-        LLVM_DEBUG(errs() << "CallSite does not contain a valid function call: " << *I << "\n");
-        continue;
-      }
-
-      std::string ReplacementName;
-      auto replIter = AllocReplacementMap.find(F->getName().str());
-
-      if (replIter != AllocReplacementMap.end()) {
-        ReplacementName = replIter->second;
-      } else {
-        continue;
-      }
-
-      Function *UntrustedAlloc = M.getFunction(ReplacementName);
-      if (!UntrustedAlloc) {
-        LLVM_DEBUG(errs() << "ERROR while creating patch: Could not find replacement: "
-          << ReplacementName << "\n");
-        continue;
-      }
-
-      if (CallInst *call = dyn_cast<CallInst>(I)) {
-        LLVM_DEBUG(errs() << "Modifying CallInstruction: " << *call << "\n");
-        call->setCalledFunction(UntrustedAlloc);
-        ++modified_inst_count;
-      }
-    }
+    inst->setCalledFunction(repl_func);
+    LLVM_DEBUG(errs() << "Modified CallInstruction: " << *inst << "\n");
+    ++modified_inst_count;
   }
 
-  void removeHooks() {
+  void removeHooks(Module &M) {
     for (auto inst : hookList) {
-      inst->removeFromParent();
+      salvageDebugInfo(*inst);
+      inst->eraseFromParent();
+    }
+
+    auto allocHook = M.getFunction("allocHook");
+    auto reallocHook = M.getFunction("reallocHook");
+    auto deallocHook = M.getFunction("deallocHook");
+
+    allocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+    allocHook->eraseFromParent();
+
+    reallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+    reallocHook->eraseFromParent();
+
+    deallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+    deallocHook->eraseFromParent();
+  }
+
+  /// Iterate all Functions of Module M, remove NoInline attribute from
+  /// Functions with RustAllocator attribute.
+  void removeInlineAttr(Module &M) {
+    for (Function &F : M) {
+      if (F.hasFnAttribute(Attribute::RustAllocator)) {
+        F.removeFnAttr(Attribute::NoInline);
+        F.addFnAttr(Attribute::AlwaysInline);
+      }
     }
   }
 
@@ -343,9 +373,6 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<CallGraphWrapperPass>();
   }
-
-private:
-  std::map<uint64_t, Instruction *> alloc_map;
 };
 
 char DynUntrustedAllocPost::ID = 0;

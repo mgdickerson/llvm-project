@@ -203,8 +203,18 @@ public:
   /// Iterate all Functions of Module M, remove NoInline attribute from
   /// Functions with RustAllocator attribute.
   void removeInlineAttr(Module &M) {
+    auto rust_alloc = M.getFunction("__rust_alloc");
+    auto rust_alloc_zeroed = M.getFunction("__rust_alloc_zeroed");
+    auto rust_realloc = M.getFunction("__rust_realloc");
+    auto rust_dealloc = M.getFunction("__rust_dealloc");
+
     for (Function &F : M) {
       if (F.hasFnAttribute(Attribute::RustAllocator)) {
+        // Dont inline any functions that may be altered or hooked in the
+        // PostPass
+        if (&F == rust_alloc || &F == rust_alloc_zeroed || &F == rust_realloc ||
+            &F == rust_dealloc)
+          continue;
         F.removeFnAttr(Attribute::NoInline);
       }
     }

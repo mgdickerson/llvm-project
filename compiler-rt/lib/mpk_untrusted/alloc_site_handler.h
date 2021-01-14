@@ -1,8 +1,8 @@
 #ifndef ALLOCSITEHANDLER_H
 #define ALLOCSITEHANDLER_H
 
-#include "sanitizer_common/sanitizer_common.h"
 #include "mpk_untrusted.h"
+#include "sanitizer_common/sanitizer_common.h"
 
 #include <cassert>
 #include <map>
