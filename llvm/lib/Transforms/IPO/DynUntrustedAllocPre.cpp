@@ -24,6 +24,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -33,6 +34,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include <fstream>
 #include <set>
@@ -152,18 +154,43 @@ public:
       for (BasicBlock *BB : RPOT) {
         for (Instruction &I : *BB) {
           CallSite CS(&I);
-          if (!CS) {
+          if (!CS)
             continue;
-          }
 
           Instruction *newHook = getHookInst(M, &CS);
-          // Check to make sure new hook is not void
           if (!newHook)
             continue;
 
-          BasicBlock::iterator bbIter((Instruction *)CS.getInstruction());
-          bbIter++;
-          BB->getInstList().insert(bbIter, newHook);
+          BasicBlock::iterator NextInst;
+          if (auto call = dyn_cast<CallInst>(&I)) {
+            NextInst = ++I.getIterator();
+            assert(NextInst != I.getParent()->end());
+            LLVM_DEBUG(errs() << "CallInst(" << I << ") found next iterator: "
+                              << *NextInst << "\n");
+          } else if (auto invoke = dyn_cast<InvokeInst>(&I)) {
+            BasicBlock *NormalDest = invoke->getNormalDest();
+            if (!NormalDest->getSinglePredecessor()) {
+              DominatorTree &DT =
+                  getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
+              auto BBNew = SplitEdge(invoke->getParent(), NormalDest, &DT);
+              NextInst = BBNew->front().getIterator();
+              LLVM_DEBUG(errs() << "InvokeInst(" << I
+                                << ") with SplitEdge, found next iterator: "
+                                << *NextInst << "\n");
+            } else {
+              NextInst = NormalDest->getFirstInsertionPt();
+              assert(NextInst != NormalDest->end() &&
+                     "Could not find insertion point for invoke instr");
+              LLVM_DEBUG(errs() << "InvokeInst(" << I
+                                << ") with single Pred, found next iterator: "
+                                << *NextInst << "\n");
+            }
+          } else {
+            continue;
+          }
+
+          IRBuilder<> IRB(&*NextInst);
+          IRB.Insert(newHook);
           ++hook_count;
         }
       }
@@ -208,20 +235,37 @@ public:
     auto rust_realloc = M.getFunction("__rust_realloc");
     auto rust_dealloc = M.getFunction("__rust_dealloc");
 
+    auto rust_untrusted_alloc = M.getFunction("__rust_untrusted_alloc");
+    auto rust_untrusted_alloc_zeroed =
+        M.getFunction("__rust_untrusted_alloc_zeroed");
+    rust_untrusted_alloc->setLinkage(
+        llvm::GlobalValue::LinkageTypes::ExternalLinkage);
+    rust_untrusted_alloc_zeroed->setLinkage(
+        llvm::GlobalValue::LinkageTypes::ExternalLinkage);
+
     for (Function &F : M) {
       if (F.hasFnAttribute(Attribute::RustAllocator)) {
         // Dont inline any functions that may be altered or hooked in the
         // PostPass
         if (&F == rust_alloc || &F == rust_alloc_zeroed || &F == rust_realloc ||
-            &F == rust_dealloc)
+            &F == rust_dealloc || &F == rust_untrusted_alloc ||
+            &F == rust_untrusted_alloc_zeroed)
           continue;
         F.removeFnAttr(Attribute::NoInline);
       }
     }
+
+    rust_alloc->addFnAttr(Attribute::NoInline);
+    rust_alloc->addFnAttr(Attribute::RustAllocator);
+    rust_alloc_zeroed->addFnAttr(Attribute::NoInline);
+    rust_alloc_zeroed->addFnAttr(Attribute::RustAllocator);
+    rust_realloc->addFnAttr(Attribute::NoInline);
+    rust_realloc->addFnAttr(Attribute::RustAllocator);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<CallGraphWrapperPass>();
+    AU.addRequired<DominatorTreeWrapperPass>();
   }
 
 private:
@@ -238,6 +282,7 @@ INITIALIZE_PASS_BEGIN(DynUntrustedAllocPre, "dyn-untrusted-pre",
                       "function hooks for tracking allocation IDs.",
                       false, false)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(DynUntrustedAllocPre, "dyn-untrusted-pre",
                     "DynUntrustedAlloc: Patch allocation sites with dynamic "
                     "function hooks for tracking allocation IDs.",

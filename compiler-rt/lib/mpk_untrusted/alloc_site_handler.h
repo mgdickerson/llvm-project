@@ -139,28 +139,26 @@ public:
     // Get AllocSite found from given rust_ptr
     auto map_iter = allocation_map.lower_bound(ptr);
 
-    // First check to make sure the iterator is not past the end of the map,
-    // otherwise return error.
+    // First check to see if we found an exact match.
     if (map_iter != allocation_map.end()) {
       // Found valid iterator, check for exact match first
       if (map_iter->first == ptr) {
         // For an exact match, we can return the found allocation site
         return map_iter->second;
       }
-
-      // If it is not an exact match, we need to check the AllocationSite
-      // immediately before found site. Check that map_iter is not the first
-      // item, otherwise return error.
-      if (map_iter != allocation_map.begin()) {
-        --map_iter;
-        if (map_iter->second->containsPtr(ptr)) {
-          return map_iter->second;
-        }
-        // If we reach this point, it means the allocation site did not contain
-        // this pointer. Return Error.
-      }
     }
 
+    // If it was not an exact match (or iterator was at map.end()), check
+    // previous node to see if it is contained within valid range.
+    if (map_iter != allocation_map.begin())
+      --map_iter;
+
+    if (map_iter->second->containsPtr(ptr))
+      return map_iter->second;
+
+    // If pointer was not an exact match, was not the beginning node,
+    // and was not the node before the returned result of lower_bound,
+    // then item is not contained within map. Return error node.
     __sanitizer::Report("INFO : Returning AllocSite::error()\n");
     return AllocSite::error();
   }

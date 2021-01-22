@@ -45,7 +45,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
 void disablePageMPK(siginfo_t *si, void *arg) {
   void *page_addr = (void *)((uintptr_t)si->si_addr & ~(PAGE_SIZE - 1));
 
-  __sanitizer::Report("Disabling MPK protection for page(%p).", page_addr);
+  __sanitizer::Report("Disabling MPK protection for page(%p).\n", page_addr);
 
   pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, 0);
 }

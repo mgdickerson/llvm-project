@@ -26,6 +26,14 @@ set(MPK_UNTRUSTED_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARY} ${SANITIZER_COMMON_L
 
 add_compiler_rt_component(mpk_untrusted)
 foreach(arch ${MPK_UNTRUSTED_SUPPORTED_ARCH})
+    add_compiler_rt_object_libraries(RTMPKUntrusted
+    ARCHS ${arch}
+    SOURCES ${MPK_UNTRUSTED_SOURCES}
+            $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
+            $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
+    ADDITIONAL_HEADERS ${MPK_UNTRUSTED_HEADERS}
+    CFLAGS ${MPK_UNTRUSTED_CFLAGS})
+
     add_compiler_rt_runtime(clang_rt.mpk_untrusted
         STATIC
         ARCHS ${arch}

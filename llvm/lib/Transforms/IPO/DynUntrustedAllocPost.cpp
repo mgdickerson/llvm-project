@@ -270,10 +270,10 @@ public:
 
           // If provided a valid path, modify given instruction
           if (!mpk_profile_path.empty()) {
+            assert(!fault_map.empty() && "No Faulting Allocation to patch!");
             // Get Call Instr that hook references
             auto allocFunc = CS.getArgument(0);
-            if (isa<CallBase>(allocFunc)) {
-              CallBase *allocInst = cast<CallBase>(allocFunc);
+            if (auto *allocInst = dyn_cast<CallBase>(allocFunc)) {
 
               // Check to see if ID is in fault set for patching
               auto map_iter = fault_map.find(id->getZExtValue());
