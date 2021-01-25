@@ -68,16 +68,8 @@ TEST(getAllocSite, ValidBetweenAddress) {
   handle->removeAllocSite(ptr2);
 }
 
-TEST(getAllocSite, Overflow) {
-  auto ptr = (rust_ptr)std::numeric_limits<unsigned int>::max();
-  auto newAllocSite = std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1);
-  EXPECT_TRUE(newAllocSite->containsPtr(++ptr));
-}
-
-intptr_t retVal(intptr_t val1, intptr_t val2) { return val1 - val2; }
-
-TEST(getAllocSite, Underflow) {
-  auto ptr = (rust_ptr)retVal((intptr_t) nullptr, 1);
+TEST(getAllocSite, PointerArithmeticOverflowWraps) {
+  auto ptr = (rust_ptr)(-1); // 0xffffffffffffffff
   auto newAllocSite = std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1);
   EXPECT_FALSE(newAllocSite->containsPtr(++ptr));
 }

@@ -42,6 +42,10 @@ public:
   /// Returns a shared pointer to the Error AllocSite.
   static std::shared_ptr<AllocSite> error();
 
+  // Note : containsPtr contains potentially wrapping arithmetic. If a ptr
+  // and the allocations size exceed 0xffffffffffffffff, then any pointer
+  // searched for in the valid range will return False, as it cannot satisfy 
+  // both requirments in the check.
   bool containsPtr(rust_ptr ptrCmp) {
     // TODO : Note, might be important to cast pointers to uintptr_t type for
     // arithmetic comparisons if it behaves incorrectly.
