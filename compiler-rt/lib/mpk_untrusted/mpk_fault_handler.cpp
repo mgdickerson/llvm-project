@@ -53,8 +53,10 @@ void disablePageMPK(siginfo_t *si, void *arg) {
 void disableThreadMPK(void *arg, uint32_t pkey) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
 
-  last_pkey = pkey;
-  last_access_rights = __mpk_untrusted::pkey_get(pkru_ptr, pkey);
+  auto handler = __mpk_untrusted::AllocSiteHandler::get();
+  auto pkey_info = __mpk_untrusted::PKeyInfo(pkey, __mpk_untrusted::pkey_get(pkru_ptr, pkey));
+  handler->storePidKey(getpid(), pkey_info);
+  
   __mpk_untrusted::pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
 
   __sanitizer::Report("INFO : Pkey(%d) has been set to ENABLE_ACCESS to enable "
@@ -62,13 +64,11 @@ void disableThreadMPK(void *arg, uint32_t pkey) {
                       pkey);
 }
 
-void enableThreadMPK(void *arg, uint32_t pkey) {
+void enableThreadMPK(void *arg, __mpk_untrusted::PKeyInfo pkey_info) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
-  __mpk_untrusted::pkey_set(pkru_ptr, last_pkey, last_access_rights);
-  __sanitizer::Report("INFO : Pkey(%d) has been reset to %d.\n", last_pkey,
-                      last_access_rights);
-  last_pkey = INVALID_PKEY;
-  last_access_rights = PKEY_ENABLE_ACCESS;
+  __mpk_untrusted::pkey_set(pkru_ptr, pkey_info.pkey, pkey_info.access_rights);
+  __sanitizer::Report("INFO : Pkey(%d) has been reset to %d.\n", pkey_info.pkey,
+                      pkey_info.access_rights);
 }
 
 void disableMPK(siginfo_t *si, void *arg) {
@@ -90,7 +90,10 @@ void disableMPK(siginfo_t *si, void *arg) {
 void stepMPKHandle(int sig, siginfo_t *si, void *arg) {
   __sanitizer::Report(
       "Reached signal handler after single instruction step.\n");
-  enableThreadMPK(arg, si->si_pkey);
+  auto handler = __mpk_untrusted::AllocSiteHandler::get();
+  auto pid_key_info = handler->getPidKey(getpid());
+  if (pid_key_info)
+    enableThreadMPK(arg, pid_key_info.getValue());
 
   // Disable trap flag on next instruction
   ucontext_t *uctxt = (ucontext_t *)arg;

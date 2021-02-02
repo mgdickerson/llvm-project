@@ -3,6 +3,7 @@
 
 #include "mpk_untrusted.h"
 #include "sanitizer_common/sanitizer_common.h"
+#include "llvm/ADT/Optional.h"
 
 #include <cassert>
 #include <map>
@@ -94,6 +95,12 @@ public:
   }
 };
 
+class PKeyInfo {
+  uint32_t pkey;
+  unsigned int access_rights;
+  PKeyInfo(uint32_t pkey, unsigned int access_rights) : pkey(pkey), access_rights(access_rights) {}
+};
+
 class AllocSiteHandler {
 private:
   // Singleton AllocSiteHandler pointer
@@ -104,6 +111,10 @@ private:
   std::set<AllocSite> fault_set;
   // Thread safety mutex
   std::mutex mx;
+  // Mapping of thread-id to saved pkey
+  std::map<pid_t, PKeyInfo> pid_key_map;
+  // MPK map safety mutex
+  std::mutex px;
   AllocSiteHandler() = default;
 
 public:
@@ -191,6 +202,27 @@ public:
       fault_set.insert(*assoc);
       stats->incFaultCount(assoc);
     }
+  }
+
+  void storePidKey(pid_t threadID, PKeyInfo pkey) {
+    // Obtain map key
+    const std::lock_guard<std::mutex> lock(px);
+
+    pid_key_map.insert(std::pair<pid_t, PKeyInfo>(threadID, pkey));
+  }
+
+  llvm::Optional<PKeyInfo> getPidKey(pid_t threadID) {
+    // Obtain map key
+    const std::lock_guard<std::mutex> lock(px);
+
+    auto iter = pid_key_map.find(threadID);
+    // If PID does not contain key in map, return None.
+    if (iter == pid_key_map.end())
+      return llvm::None;
+
+    auto ret_val = iter->second;
+    pid_key_map.erase(threadID);
+    return ret_val;
   }
 
   std::set<AllocSite> &faultingAllocs() { return fault_set; }
