@@ -96,6 +96,7 @@ public:
 };
 
 class PKeyInfo {
+public:
   uint32_t pkey;
   unsigned int access_rights;
   PKeyInfo(uint32_t pkey, unsigned int access_rights) : pkey(pkey), access_rights(access_rights) {}
