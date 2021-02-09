@@ -10,10 +10,14 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include "sanitizer_common/sanitizer_mutex.h"
 
 typedef int8_t *rust_ptr;
 
 namespace __mpk_untrusted {
+
+typedef RWMutex Mutex;
+typedef RWMutexLock Lock;
 
 class AllocSite {
   typedef std::set<std::shared_ptr<AllocSite>> alloc_set_type;
@@ -112,10 +116,12 @@ private:
   std::set<AllocSite> fault_set;
   // Thread safety mutex
   std::mutex mx;
+  Mutex mx_san;
   // Mapping of thread-id to saved pkey
   std::map<pid_t, PKeyInfo> pid_key_map;
   // MPK map safety mutex
   std::mutex px;
+  Mutex px_san;
   AllocSiteHandler() = default;
 
 public:
@@ -127,6 +133,7 @@ public:
   bool empty() { return allocation_map.empty(); }
 
   void insertAllocSite(rust_ptr ptr, std::shared_ptr<AllocSite> site) {
+    const Lock lock(mx_san);
     // First, obtain the mutex lock to ensure safe addition of item to map.
     const std::lock_guard<std::mutex> lock(mx);
 
