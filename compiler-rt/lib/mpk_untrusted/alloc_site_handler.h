@@ -143,6 +143,7 @@ public:
   }
 
   void removeAllocSite(rust_ptr ptr) {
+    const Lock lock(mx_san);
     // Obtain mutex lock.
     const std::lock_guard<std::mutex> lock(mx);
 
@@ -151,6 +152,7 @@ public:
   }
 
   std::shared_ptr<AllocSite> getAllocSite(rust_ptr ptr) {
+    const Lock lock(mx_san);
     // Obtain mutex lock.
     const std::lock_guard<std::mutex> lock(mx);
 
@@ -213,6 +215,7 @@ public:
   }
 
   void storePidKey(pid_t threadID, PKeyInfo pkey) {
+    const Lock lock(px_san);
     // Obtain map key
     const std::lock_guard<std::mutex> lock(px);
 
@@ -220,6 +223,7 @@ public:
   }
 
   llvm::Optional<PKeyInfo> getPidKey(pid_t threadID) {
+    const Lock lock(px_san);
     // Obtain map key
     const std::lock_guard<std::mutex> lock(px);
 
