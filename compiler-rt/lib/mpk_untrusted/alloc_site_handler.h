@@ -133,7 +133,7 @@ public:
   bool empty() { return allocation_map.empty(); }
 
   void insertAllocSite(rust_ptr ptr, std::shared_ptr<AllocSite> site) {
-    const Lock lock(mx_san);
+    const Lock lock_san(mx_san);
     // First, obtain the mutex lock to ensure safe addition of item to map.
     const std::lock_guard<std::mutex> lock(mx);
 
@@ -143,7 +143,7 @@ public:
   }
 
   void removeAllocSite(rust_ptr ptr) {
-    const Lock lock(mx_san);
+    const Lock lock_san(mx_san);
     // Obtain mutex lock.
     const std::lock_guard<std::mutex> lock(mx);
 
@@ -152,7 +152,7 @@ public:
   }
 
   std::shared_ptr<AllocSite> getAllocSite(rust_ptr ptr) {
-    const Lock lock(mx_san);
+    const Lock lock_san(mx_san);
     // Obtain mutex lock.
     const std::lock_guard<std::mutex> lock(mx);
 
@@ -215,7 +215,7 @@ public:
   }
 
   void storePidKey(pid_t threadID, PKeyInfo pkey) {
-    const Lock lock(px_san);
+    const Lock lock_san(px_san);
     // Obtain map key
     const std::lock_guard<std::mutex> lock(px);
 
@@ -223,7 +223,7 @@ public:
   }
 
   llvm::Optional<PKeyInfo> getPidKey(pid_t threadID) {
-    const Lock lock(px_san);
+    const Lock lock_san(px_san);
     // Obtain map key
     const std::lock_guard<std::mutex> lock(px);
 
