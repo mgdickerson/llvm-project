@@ -16,8 +16,8 @@ typedef int8_t *rust_ptr;
 
 namespace __mpk_untrusted {
 
-typedef RWMutex Mutex;
-typedef RWMutexLock Lock;
+typedef __saniziter::RWMutex Mutex;
+typedef __saniziter::RWMutexLock Lock;
 
 class AllocSite {
   typedef std::set<std::shared_ptr<AllocSite>> alloc_set_type;
