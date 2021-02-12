@@ -9,7 +9,7 @@ extern "C" {
 /// Constructor will set up the segMPKHandle fault handler, and additionally
 /// the stepMPKHandle when testing single stepping.
 void mpk_untrusted_constructor() {
-  __sanitizer::Report("INFO : Initializing and replacing segFaultHandler.\n");
+  REPORT("INFO : Initializing and replacing segFaultHandler.\n");
 
   // Set up our fault handler
   static struct sigaction sa;
@@ -17,7 +17,7 @@ void mpk_untrusted_constructor() {
   memset(&sa, 0, sizeof(struct sigaction));
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_SIGINFO;
-  sa.sa_sigaction = segMPKHandle;
+  sa.sa_sigaction = __mpk_untrusted::segMPKHandle;
   sigaction(SIGSEGV, &sa, &sa_old);
 
 #if SINGLE_STEP
@@ -26,7 +26,7 @@ void mpk_untrusted_constructor() {
 
   sa_trap.sa_flags = SA_SIGINFO;
   sigemptyset(&sa_trap.sa_mask);
-  sa_trap.sa_sigaction = stepMPKHandle;
+  sa_trap.sa_sigaction = __mpk_untrusted::stepMPKHandle;
   sigaction(SIGTRAP, &sa_trap, NULL);
 #endif
 

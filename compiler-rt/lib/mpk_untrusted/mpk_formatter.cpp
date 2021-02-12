@@ -25,7 +25,7 @@ llvm::Optional<std::string> makeUniqueFilename(std::string path,
   }
 
   // Failed to make unique name
-  __sanitizer::Report("Failed to make uniqueFileID.\n");
+  REPORT("Failed to make uniqueFileID.\n");
   return llvm::None;
 }
 
@@ -41,7 +41,7 @@ llvm::Optional<std::ofstream> makeUniqueStream(std::string path,
   if (OS)
     return OS;
 
-  __sanitizer::Report("Failed to create uniqueOStream.\n");
+  REPORT("Failed to create uniqueOStream.\n");
   return llvm::None;
 }
 
@@ -75,7 +75,7 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
   std::string TestDirectory = "TestResults";
   if (!is_directory(TestDirectory)) {
     if (mkdir(TestDirectory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
-      __sanitizer::Report("Failed to create TestResults directory.\n");
+      REPORT("Failed to create TestResults directory.\n");
       return false;
     }
   }
@@ -87,7 +87,7 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
   writeJSON(OS, faultSet);
   OS.flush();
 
-  auto stats = StatsTracker::get();
+  auto stats = StatsTracker::getOrInit();
   auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
   if (!uniqueSOS)
     return false;
@@ -112,18 +112,17 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
 // Flush Allocs is to be called on program exit to flush all faulting
 // allocations to disk/file.
 void flushAllocs() {
-  auto handler = AllocSiteHandler::get();
+  auto handler = AllocSiteHandler::getOrInit();
   if (handler->faultingAllocs().empty()) {
-    __sanitizer::Report(
-        "INFO : No faulting instructions to export, returning.\n");
+    REPORT("INFO : No faulting instructions to export, returning.\n");
     return;
   }
 
   // Simple method that requires either handling multiple files or a script for
   // combining them later.
   if (!writeUniqueFile(handler->faultingAllocs()))
-    __sanitizer::Report("ERROR : Unable to successfully write unique files for "
-                        "given program run.\n");
+    REPORT("ERROR : Unable to successfully write unique files for "
+           "given program run.\n");
 }
 
 } // namespace __mpk_untrusted
