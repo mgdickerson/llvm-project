@@ -11,4 +11,12 @@
 #include <cstdio>
 #include <cstring>
 
+#ifdef ENABLE_LOGGING
+#define REPORT(...) __sanitizer::Report(__VA_ARGS__)
+#else
+#define REPORT(...)                                                            \
+  do {                                                                         \
+  } while (0)
+#endif
+
 #endif // MPK_COMMON_H

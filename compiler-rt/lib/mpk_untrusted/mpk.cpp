@@ -99,8 +99,7 @@ int pkru_xstate_offset(void) {
     }
   }
   if (xstate_size == 0) {
-    __sanitizer::Report(
-        "INFO : Could not find size/offset of PKRU in xsave state\n");
+    REPORT("INFO : Could not find size/offset of PKRU in xsave state\n");
     return 0;
   }
   return xstate_offset;

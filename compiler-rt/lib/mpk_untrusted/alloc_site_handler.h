@@ -1,8 +1,8 @@
 #ifndef ALLOCSITEHANDLER_H
 #define ALLOCSITEHANDLER_H
 
+#include "mpk_common.h"
 #include "mpk_untrusted.h"
-#include "sanitizer_common/sanitizer_common.h"
 #include "llvm/ADT/Optional.h"
 
 #include <cassert>
@@ -82,7 +82,7 @@ public:
   std::set<std::shared_ptr<AllocSite>> ReallocSitesFound;
 
   static void init();
-  static std::shared_ptr<StatsTracker> get();
+  static std::shared_ptr<StatsTracker> getOrInit();
 
   void incFaultCount(std::shared_ptr<AllocSite> alloc) {
     auto it = AllocSiteFaultCount.find(alloc);
@@ -95,7 +95,7 @@ public:
   }
 };
 
-class PKeyInfo {
+struct PKeyInfo {
 public:
   uint32_t pkey;
   unsigned int access_rights;
@@ -111,25 +111,25 @@ private:
   std::map<rust_ptr, std::shared_ptr<AllocSite>> allocation_map;
   // Set of faulting AllocationSites
   std::set<AllocSite> fault_set;
-  // Thread safety mutex
-  std::mutex mx;
+  // allocation_map mutex
+  std::mutex alloc_map_mx;
   // Mapping of thread-id to saved pkey
-  std::map<pid_t, PKeyInfo> pid_key_map;
-  // MPK map safety mutex
-  std::mutex px;
+  std::map<pid_t, PKeyInfo> pkey_by_pid_map;
+  // pkey_by_pid_map mutex
+  std::mutex pkey_pid_map_px;
   AllocSiteHandler() = default;
 
 public:
   ~AllocSiteHandler() {}
 
   static void init();
-  static std::shared_ptr<AllocSiteHandler> get();
+  static std::shared_ptr<AllocSiteHandler> getOrInit();
 
   bool empty() { return allocation_map.empty(); }
 
   void insertAllocSite(rust_ptr ptr, std::shared_ptr<AllocSite> site) {
     // First, obtain the mutex lock to ensure safe addition of item to map.
-    const std::lock_guard<std::mutex> lock(mx);
+    const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
 
     // Insert AllocationSite for given ptr.
     allocation_map.insert(
@@ -138,7 +138,7 @@ public:
 
   void removeAllocSite(rust_ptr ptr) {
     // Obtain mutex lock.
-    const std::lock_guard<std::mutex> lock(mx);
+    const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
 
     // Remove AllocationSite for given ptr.
     allocation_map.erase(ptr);
@@ -146,10 +146,10 @@ public:
 
   std::shared_ptr<AllocSite> getAllocSite(rust_ptr ptr) {
     // Obtain mutex lock.
-    const std::lock_guard<std::mutex> lock(mx);
+    const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
 
     if (allocation_map.empty()) {
-      __sanitizer::Report("INFO : Map is empty, returning error.\n");
+      REPORT("INFO : Map is empty, returning error.\n");
       return AllocSite::error();
     }
 
@@ -176,18 +176,17 @@ public:
     // If pointer was not an exact match, was not the beginning node,
     // and was not the node before the returned result of lower_bound,
     // then item is not contained within map. Return error node.
-    __sanitizer::Report("INFO : Returning AllocSite::error()\n");
+    REPORT("INFO : Returning AllocSite::error()\n");
     return AllocSite::error();
   }
 
   void addFaultAlloc(rust_ptr ptr, uint32_t pkey) {
     auto alloc = getAllocSite(ptr);
-    __sanitizer::Report("INFO : Getting AllocSite : id(%d), ptr(%p)\n",
-                        alloc->id(), alloc->getPtr());
+    REPORT("INFO : Getting AllocSite : id(%d), ptr(%p)\n", alloc->id(),
+           alloc->getPtr());
 
     if (!alloc->isValid()) {
-      __sanitizer::Report(
-          "INFO : AllocSite is not valid, will not add it to Fault Set.\n");
+      REPORT("INFO : AllocSite is not valid, will not add it to Fault Set.\n");
       return;
     }
 
@@ -196,7 +195,7 @@ public:
     fault_set.insert(*alloc);
 
     // Increment the count of the allocation faulting
-    auto stats = StatsTracker::get();
+    auto stats = StatsTracker::getOrInit();
     stats->incFaultCount(alloc);
 
     for (auto assoc : alloc->getAssociatedSet()) {
@@ -206,24 +205,28 @@ public:
     }
   }
 
-  void storePidKey(pid_t threadID, PKeyInfo pkey) {
+  /// For single instruction stepping, this function will store a given PKey's
+  /// permissions for a given thread-id
+  void storePKeyInfo(pid_t threadID, PKeyInfo pkey) {
     // Obtain map key
-    const std::lock_guard<std::mutex> lock(px);
+    const std::lock_guard<std::mutex> pkey_map_guard(pkey_pid_map_px);
 
-    pid_key_map.insert(std::pair<pid_t, PKeyInfo>(threadID, pkey));
+    pkey_by_pid_map.insert(std::pair<pid_t, PKeyInfo>(threadID, pkey));
   }
 
-  llvm::Optional<PKeyInfo> getPidKey(pid_t threadID) {
+  /// For single instruction stepping, this will pop the associated PKey
+  /// information for a given thread-id from the pkey_by_pid_map
+  llvm::Optional<PKeyInfo> popPendingPKeyInfo(pid_t threadID) {
     // Obtain map key
-    const std::lock_guard<std::mutex> lock(px);
+    const std::lock_guard<std::mutex> pkey_map_guard(pkey_pid_map_px);
 
-    auto iter = pid_key_map.find(threadID);
+    auto iter = pkey_by_pid_map.find(threadID);
     // If PID does not contain key in map, return None.
-    if (iter == pid_key_map.end())
+    if (iter == pkey_by_pid_map.end())
       return llvm::None;
 
     auto ret_val = iter->second;
-    pid_key_map.erase(threadID);
+    pkey_by_pid_map.erase(threadID);
     return ret_val;
   }
 
