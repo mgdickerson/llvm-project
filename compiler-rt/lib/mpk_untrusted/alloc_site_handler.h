@@ -29,13 +29,13 @@ private:
   alloc_set_type associatedSet;
   // Mutex for getting and setting PKey value
   std::mutex pkey_mx;
-  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0), pkey_mx(std::mutex) {}
+  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0), pkey_mx{} {}
 
 public:
   AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID, uint32_t pkey = 0,
             alloc_set_type assocSet = alloc_set_type())
       : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{pkey}, associatedSet{
-                                                                  assocSet} {
+                                                                  assocSet}, pkey_mx{} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(uniqueID >= 0);
