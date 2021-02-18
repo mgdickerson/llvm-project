@@ -2,6 +2,7 @@
 #define MPK_FORMATTER_H
 
 #include "alloc_site_handler.h"
+#include "mpk_common.h"
 
 #include "llvm/ADT/Optional.h"
 #include <fstream>

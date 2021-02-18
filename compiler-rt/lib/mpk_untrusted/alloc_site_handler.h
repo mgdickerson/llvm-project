@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -26,6 +27,8 @@ private:
   int64_t uniqueID;
   uint32_t pkey;
   alloc_set_type associatedSet;
+  // Mutex for getting and setting PKey value
+  std::mutex pkey_mx;
   AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
 
 public:
@@ -44,7 +47,7 @@ public:
   static std::shared_ptr<AllocSite> error();
 
   // Note : containsPtr contains potentially wrapping arithmetic. If a ptr
-  // and the allocations size exceed 0xffffffffffffffff, then any pointer
+  // and the allocations size exceed max pointer size, then any pointer
   // searched for in the valid range will return False, as it cannot satisfy 
   // both requirments in the check.
   bool containsPtr(rust_ptr ptrCmp) {
@@ -59,47 +62,29 @@ public:
 
   bool isValid() { return (ptr != nullptr) && (size > 0) && (uniqueID >= 0); }
 
-  void addPkey(uint32_t faultPkey) { pkey = faultPkey; }
+  void addPkey(uint32_t faultPkey) { 
+    const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
+    pkey = faultPkey; 
+  }
 
-  uint32_t getPkey() { return pkey; }
+  uint32_t getPkey() { 
+    const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
+    return pkey; 
+  }
 
   alloc_set_type getAssociatedSet() { return associatedSet; }
 
   bool operator<(const AllocSite &ac) const { return uniqueID < ac.id(); }
 };
 
-class StatsTracker {
-private:
-  static std::shared_ptr<StatsTracker> handle;
-  StatsTracker() = default;
+typedef pid_t thread_id;
 
-public:
-  uint64_t allocHookCalls;
-  uint64_t reallocHookCalls;
-  uint64_t deallocHookCalls;
-  std::map<std::shared_ptr<AllocSite>, uint64_t> AllocSiteFaultCount;
-  std::set<std::shared_ptr<AllocSite>> AllocSitesFound;
-  std::set<std::shared_ptr<AllocSite>> ReallocSitesFound;
-
-  static void init();
-  static std::shared_ptr<StatsTracker> getOrInit();
-
-  void incFaultCount(std::shared_ptr<AllocSite> alloc) {
-    auto it = AllocSiteFaultCount.find(alloc);
-    if (it != AllocSiteFaultCount.end()) {
-      it->second++;
-    } else {
-      AllocSiteFaultCount.insert(
-          std::pair<std::shared_ptr<AllocSite>, uint64_t>(alloc, 1));
-    }
-  }
-};
-
-struct PKeyInfo {
+/// PendingPKeyInfo tracks the access rights for a given PKey. This is mapped together with a thread_id for our single stepping approach to ensure that we can restore proper pkey access properties for a given thread after stepping over the faulting instruction.
+struct PendingPKeyInfo {
 public:
   uint32_t pkey;
   unsigned int access_rights;
-  PKeyInfo(uint32_t pkey, unsigned int access_rights)
+  PendingPKeyInfo(uint32_t pkey, unsigned int access_rights)
       : pkey(pkey), access_rights(access_rights) {}
 };
 
@@ -109,14 +94,16 @@ private:
   static std::shared_ptr<AllocSiteHandler> handle;
   // Mapping from memory location pointer to AllocationSite
   std::map<rust_ptr, std::shared_ptr<AllocSite>> allocation_map;
-  // Set of faulting AllocationSites
-  std::set<AllocSite> fault_set;
   // allocation_map mutex
   std::mutex alloc_map_mx;
-  // Mapping of thread-id to saved pkey
-  std::map<pid_t, PKeyInfo> pkey_by_pid_map;
-  // pkey_by_pid_map mutex
-  std::mutex pkey_pid_map_px;
+  // Set of faulting AllocationSites
+  std::set<AllocSite> fault_set;
+  // Fault set mutex
+  std::mutex fault_set_mx;
+  // Mapping of thread-id to saved pkey information
+  std::unordered_map<thread_id, PendingPKeyInfo> pkey_by_tid_map;
+  // pkey_by_tid_map mutex
+  std::mutex pkey_tid_map_mx;
   AllocSiteHandler() = default;
 
 public:
@@ -180,6 +167,7 @@ public:
     return AllocSite::error();
   }
 
+  // TODO : Likely need to add a mutex for inserting faulting allocs.
   void addFaultAlloc(rust_ptr ptr, uint32_t pkey) {
     auto alloc = getAllocSite(ptr);
     REPORT("INFO : Getting AllocSite : id(%d), ptr(%p)\n", alloc->id(),
@@ -192,41 +180,47 @@ public:
 
     alloc->addPkey(pkey);
 
-    fault_set.insert(*alloc);
-
+#ifdef MPK_STATS
     // Increment the count of the allocation faulting
-    auto stats = StatsTracker::getOrInit();
-    stats->incFaultCount(alloc);
+    assert(alloc->id() < AllocSiteTotal && alloc->id() >= 0);
+    AllocSiteUseCounter[alloc->id()]++;
+#endif
+
+    const std::lock_guard<std::mutex> fault_set_insertion_guard(fault_set_mx);
+    fault_set.insert(*alloc);
 
     for (auto assoc : alloc->getAssociatedSet()) {
       assoc->addPkey(pkey);
       fault_set.insert(*assoc);
-      stats->incFaultCount(assoc);
+#ifdef MPK_STATS
+      assert(assoc->id() < AllocSiteTotal && assoc->id() >= 0);
+      AllocSiteUseCounter[assoc->id()]++;
+#endif
     }
   }
 
   /// For single instruction stepping, this function will store a given PKey's
   /// permissions for a given thread-id
-  void storePKeyInfo(pid_t threadID, PKeyInfo pkey) {
+  void storePendingPKeyInfo(pid_t threadID, PendingPKeyInfo pkey) {
     // Obtain map key
-    const std::lock_guard<std::mutex> pkey_map_guard(pkey_pid_map_px);
+    const std::lock_guard<std::mutex> pkey_map_guard(pkey_tid_map_mx);
 
-    pkey_by_pid_map.insert(std::pair<pid_t, PKeyInfo>(threadID, pkey));
+    pkey_by_tid_map.insert(std::pair<pid_t, PendingPKeyInfo>(threadID, pkey));
   }
 
   /// For single instruction stepping, this will pop the associated PKey
-  /// information for a given thread-id from the pkey_by_pid_map
-  llvm::Optional<PKeyInfo> popPendingPKeyInfo(pid_t threadID) {
+  /// information for a given thread-id from the pkey_by_tid_map
+  llvm::Optional<PendingPKeyInfo> popPendingPKeyInfo(pid_t threadID) {
     // Obtain map key
-    const std::lock_guard<std::mutex> pkey_map_guard(pkey_pid_map_px);
+    const std::lock_guard<std::mutex> pkey_map_guard(pkey_tid_map_mx);
 
-    auto iter = pkey_by_pid_map.find(threadID);
+    auto iter = pkey_by_tid_map.find(threadID);
     // If PID does not contain key in map, return None.
-    if (iter == pkey_by_pid_map.end())
+    if (iter == pkey_by_tid_map.end())
       return llvm::None;
 
     auto ret_val = iter->second;
-    pkey_by_pid_map.erase(threadID);
+    pkey_by_tid_map.erase(threadID);
     return ret_val;
   }
 

@@ -1,14 +1,23 @@
 #include "mpk_untrusted.h"
-#include "mpk_fault_handler.h"
-#include "mpk_formatter.h"
-#include "sanitizer_common/sanitizer_common.h"
 
-#include <cstring>
+#ifdef MPK_STATS
+std::atomic<uint64_t>* AllocSiteUseCounter(nullptr);
+std::atomic<uint64_t> allocHookCalls(0);
+std::atomic<uint64_t> reallocHookCalls(0);
+std::atomic<uint64_t> deallocHookCalls(0);
+#endif
 
 extern "C" {
+
 /// Constructor will set up the segMPKHandle fault handler, and additionally
 /// the stepMPKHandle when testing single stepping.
 void mpk_untrusted_constructor() {
+#ifdef MPK_STATS
+  // If MPK_STATS is defined, grab the total allocation sites value and initialize dynamic array.
+  // std::atomic should be 0 initialized according to docs.
+  AllocSiteUseCounter = new std::atomic<uint64_t>[AllocSiteTotal]();
+#endif
+
   REPORT("INFO : Initializing and replacing segFaultHandler.\n");
 
   // Set up our fault handler

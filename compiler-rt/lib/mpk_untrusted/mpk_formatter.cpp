@@ -87,25 +87,26 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
   writeJSON(OS, faultSet);
   OS.flush();
 
-  auto stats = StatsTracker::getOrInit();
+#ifdef MPK_STATS
   auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
   if (!uniqueSOS)
     return false;
   std::ofstream &SOS = uniqueSOS.getValue();
-  SOS << "Number of Unique AllocSites Found: " << stats->AllocSitesFound.size()
+  SOS << "Number of Times allocHook Called: " << allocHookCalls << "\n"
+      << "Number of Times reallocHook Called: " << reallocHookCalls
       << "\n"
-      << "Number of Unique ReallocSites Found: "
-      << stats->ReallocSitesFound.size() << "\n"
-      << "Number of Times allocHook Called: " << stats->allocHookCalls << "\n"
-      << "Number of Times reallocHook Called: " << stats->reallocHookCalls
-      << "\n"
-      << "Number of Times deallocHook Called: " << stats->deallocHookCalls
+      << "Number of Times deallocHook Called: " << deallocHookCalls
       << "\n";
-  for (auto &key_value : stats->AllocSiteFaultCount) {
-    SOS << "AllocSite(" << key_value.first->id()
-        << ") faults: " << key_value.second << "\n";
+  uint64_t AllocSitesFound = 0;
+  for (uint64_t i = 0; i < AllocSiteTotal; i++) {
+    if (AllocSiteUseCounter[i] > 0) {
+      SOS << "AllocSite(" << i << ") faults: " << AllocSiteUseCounter[i] << "\n";
+      ++AllocSitesFound;
+    }
   }
+  SOS << "Number of Unique AllocSites Found: " << AllocSitesFound << "\n";
   SOS.flush();
+#endif
   return true;
 }
 

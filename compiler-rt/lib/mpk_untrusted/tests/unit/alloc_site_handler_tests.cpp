@@ -93,34 +93,7 @@ TEST(faultingAllocs, addFaultAlloc) {
   handle->removeAllocSite(ptr);
 }
 
-void *ThreadedGettid(void *tid) {
-  *(pid_t *)tid = gettid();
-  pthread_exit(NULL);
-}
-
-// Test gettid() macro:
-// 1) PID and TID are the same on single thread
-// 2) PID and TID are different in multi-thread
-TEST(gettid, MacroTest) {
-  EXPECT_EQ(getpid(), gettid());
-
-  pthread_t thread_id;
-  pid_t tid;
-  auto rc = pthread_create(&thread_id, NULL, ThreadedGettid, (void *)&tid);
-  if (rc) {
-    FAIL() << "Error: Unable to create thread.\n";
-  }
-
-  void *status;
-  rc = pthread_join(thread_id, &status);
-  if (rc) {
-    FAIL() << "Error: Unable to join thread.\n";
-  }
-
-  EXPECT_NE(getpid(), tid);
-}
-
-#define NUM_THREADS 10
+const int NUM_THREADS = 10;
 
 void *setAndGetPKeyInfo(void *__unused) {
   auto handle = AllocSiteHandler::getOrInit();

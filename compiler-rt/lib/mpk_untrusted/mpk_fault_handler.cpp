@@ -12,9 +12,6 @@ namespace __mpk_untrusted {
 // Trap Flag
 #define TF 0x100
 
-uint32_t last_pkey = INVALID_PKEY;
-unsigned int last_access_rights = PKEY_DISABLE_ACCESS;
-
 void disableMPK(siginfo_t *si, void *arg);
 
 void segMPKHandle(int sig, siginfo_t *si, void *arg) {
@@ -55,8 +52,8 @@ void disableThreadMPK(void *arg, uint32_t pkey) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
 
   auto handler = AllocSiteHandler::getOrInit();
-  auto pkey_info = PKeyInfo(pkey, pkey_get(pkru_ptr, pkey));
-  handler->storePKeyInfo(gettid(), pkey_info);
+  auto pkey_info = PendingPKeyInfo(pkey, pkey_get(pkru_ptr, pkey));
+  handler->storePendingPKeyInfo(gettid(), pkey_info);
   pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
 
   REPORT("INFO : Pkey(%d) has been set to ENABLE_ACCESS to enable "
@@ -64,7 +61,7 @@ void disableThreadMPK(void *arg, uint32_t pkey) {
          pkey);
 }
 
-void enableThreadMPK(void *arg, PKeyInfo pkey_info) {
+void enableThreadMPK(void *arg, PendingPKeyInfo pkey_info) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
   pkey_set(pkru_ptr, pkey_info.pkey, pkey_info.access_rights);
   REPORT("INFO : Pkey(%d) has been reset to %d.\n", pkey_info.pkey,
