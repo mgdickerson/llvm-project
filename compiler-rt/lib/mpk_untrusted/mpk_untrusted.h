@@ -9,7 +9,7 @@
 #include <cstring>
 
 extern "C" {
-extern uint64_t AllocSiteTotal;
+extern uint64_t __attribute__((weak)) AllocSiteTotal;
 
 __attribute__((visibility("default"))) void mpk_untrusted_constructor();
 }

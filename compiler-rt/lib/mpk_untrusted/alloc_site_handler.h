@@ -29,13 +29,13 @@ private:
   alloc_set_type associatedSet;
   // Mutex for getting and setting PKey value
   std::mutex pkey_mx;
-  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0), pkey_mx{} {}
+  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
 
 public:
   AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID, uint32_t pkey = 0,
             alloc_set_type assocSet = alloc_set_type())
       : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{pkey}, associatedSet{
-                                                                  assocSet}, pkey_mx{} {
+                                                                  assocSet} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(uniqueID >= 0);
@@ -67,7 +67,7 @@ public:
     pkey = faultPkey; 
   }
 
-  uint32_t getPkey() const { 
+  uint32_t getPkey() { 
     const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
     return pkey; 
   }
@@ -182,7 +182,7 @@ public:
 
 #ifdef MPK_STATS
     // Increment the count of the allocation faulting
-    assert(alloc->id() < AllocSiteTotal && alloc->id() >= 0);
+    assert((uint64_t)alloc->id() < AllocSiteCount && alloc->id() >= 0);
     AllocSiteUseCounter[alloc->id()]++;
 #endif
 
@@ -193,7 +193,7 @@ public:
       assoc->addPkey(pkey);
       fault_set.insert(assoc);
 #ifdef MPK_STATS
-      assert(assoc->id() < AllocSiteTotal && assoc->id() >= 0);
+      assert((uint64_t)assoc->id() < AllocSiteCount && assoc->id() >= 0);
       AllocSiteUseCounter[assoc->id()]++;
 #endif
     }

@@ -20,6 +20,7 @@ extern std::atomic<uint64_t>* AllocSiteUseCounter;
 extern std::atomic<uint64_t> allocHookCalls;
 extern std::atomic<uint64_t> reallocHookCalls;
 extern std::atomic<uint64_t> deallocHookCalls;
+extern uint64_t AllocSiteCount;
 #endif
 
 // #define MPK_ENABLE_LOGGING

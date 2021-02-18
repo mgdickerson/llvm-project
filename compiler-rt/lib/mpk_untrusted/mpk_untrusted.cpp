@@ -5,6 +5,7 @@ std::atomic<uint64_t>* AllocSiteUseCounter(nullptr);
 std::atomic<uint64_t> allocHookCalls(0);
 std::atomic<uint64_t> reallocHookCalls(0);
 std::atomic<uint64_t> deallocHookCalls(0);
+uint64_t AllocSiteCount = 0;
 #endif
 
 extern "C" {
@@ -16,6 +17,7 @@ void mpk_untrusted_constructor() {
   // If MPK_STATS is defined, grab the total allocation sites value and initialize dynamic array.
   // std::atomic should be 0 initialized according to docs.
   AllocSiteUseCounter = new std::atomic<uint64_t>[AllocSiteTotal]();
+  AllocSiteCount = AllocSiteTotal;
 #endif
 
   REPORT("INFO : Initializing and replacing segFaultHandler.\n");
