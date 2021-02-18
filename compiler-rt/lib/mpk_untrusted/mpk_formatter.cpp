@@ -57,7 +57,7 @@ bool is_directory(std::string directory) {
 
 // Function for handwriting the JSON output we want (to remove dependency on
 // llvm/Support).
-void writeJSON(std::ofstream &OS, std::set<AllocSite> &faultSet) {
+void writeJSON(std::ofstream &OS, std::set<std::shared_ptr<AllocSite>> &faultSet) {
   if (faultSet.size() <= 0)
     return;
 
@@ -65,13 +65,13 @@ void writeJSON(std::ofstream &OS, std::set<AllocSite> &faultSet) {
   int64_t items_remaining = faultSet.size();
   for (auto fault : faultSet) {
     --items_remaining;
-    OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
+    OS << "{ \"id\": " << fault->id() << ", \"pkey\": " << fault->getPkey()
        << " }" << (items_remaining ? "," : "") << "\n";
   }
   OS << "]\n";
 }
 
-bool writeUniqueFile(std::set<AllocSite> &faultSet) {
+bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
   std::string TestDirectory = "TestResults";
   if (!is_directory(TestDirectory)) {
     if (mkdir(TestDirectory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1) {

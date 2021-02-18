@@ -29,7 +29,7 @@ private:
   alloc_set_type associatedSet;
   // Mutex for getting and setting PKey value
   std::mutex pkey_mx;
-  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
+  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0), pkey_mx(std::mutex) {}
 
 public:
   AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID, uint32_t pkey = 0,
@@ -67,7 +67,7 @@ public:
     pkey = faultPkey; 
   }
 
-  uint32_t getPkey() { 
+  uint32_t getPkey() const { 
     const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
     return pkey; 
   }
@@ -97,7 +97,7 @@ private:
   // allocation_map mutex
   std::mutex alloc_map_mx;
   // Set of faulting AllocationSites
-  std::set<AllocSite> fault_set;
+  std::set<std::shared_ptr<AllocSite>> fault_set;
   // Fault set mutex
   std::mutex fault_set_mx;
   // Mapping of thread-id to saved pkey information
@@ -187,11 +187,11 @@ public:
 #endif
 
     const std::lock_guard<std::mutex> fault_set_insertion_guard(fault_set_mx);
-    fault_set.insert(*alloc);
+    fault_set.insert(alloc);
 
     for (auto assoc : alloc->getAssociatedSet()) {
       assoc->addPkey(pkey);
-      fault_set.insert(*assoc);
+      fault_set.insert(assoc);
 #ifdef MPK_STATS
       assert(assoc->id() < AllocSiteTotal && assoc->id() >= 0);
       AllocSiteUseCounter[assoc->id()]++;
@@ -224,7 +224,7 @@ public:
     return ret_val;
   }
 
-  std::set<AllocSite> &faultingAllocs() { return fault_set; }
+  std::set<std::shared_ptr<AllocSite>> &faultingAllocs() { return fault_set; }
 };
 } // namespace __mpk_untrusted
 extern "C" {
