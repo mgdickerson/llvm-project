@@ -12,11 +12,16 @@ namespace __mpk_untrusted {
 // Trap Flag
 #define TF 0x100
 
-uint32_t last_pkey = INVALID_PKEY;
-unsigned int last_access_rights = PKEY_DISABLE_ACCESS;
-
 void disableMPK(siginfo_t *si, void *arg);
 
+// General MPK segfault handler. Regardless of MPK access approach, all faults
+// will first pass through this handler. The timing of adding this fault handler
+// also requires caution for Rust as Rust registers its own fault handler for
+// bounds checking that erases all other fault handlers. Thus currently we do
+// not instantiate the fault handler in the constructors, but rather on first
+// call to the AllocSiteHandler (which occurs the first time any of the
+// allocation hooks are called, and thus represent the first time handling of
+// MPK faults would be required).
 void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   if (si->si_code != SEGV_PKUERR) {
     REPORT("INFO : SegFault other than SEGV_PKUERR, handling with "
@@ -43,6 +48,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   disableMPK(si, arg);
 }
 
+// Disables MPK protection for the given page for the remainder of the runtime.
 void disablePageMPK(siginfo_t *si, void *arg) {
   void *page_addr = (void *)((uintptr_t)si->si_addr & ~(PAGE_SIZE - 1));
 
@@ -51,12 +57,13 @@ void disablePageMPK(siginfo_t *si, void *arg) {
   pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, 0);
 }
 
+// Temporarily disables the given pkey for the current thread.
 void disableThreadMPK(void *arg, uint32_t pkey) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
 
   auto handler = AllocSiteHandler::getOrInit();
-  auto pkey_info = PKeyInfo(pkey, pkey_get(pkru_ptr, pkey));
-  handler->storePKeyInfo(gettid(), pkey_info);
+  auto pkey_info = PendingPKeyInfo(pkey, pkey_get(pkru_ptr, pkey));
+  handler->storePendingPKeyInfo(gettid(), pkey_info);
   pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
 
   REPORT("INFO : Pkey(%d) has been set to ENABLE_ACCESS to enable "
@@ -64,7 +71,8 @@ void disableThreadMPK(void *arg, uint32_t pkey) {
          pkey);
 }
 
-void enableThreadMPK(void *arg, PKeyInfo pkey_info) {
+// Re-enables the PendingPKey for the current thread.
+void enableThreadMPK(void *arg, PendingPKeyInfo pkey_info) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
   pkey_set(pkru_ptr, pkey_info.pkey, pkey_info.access_rights);
   REPORT("INFO : Pkey(%d) has been reset to %d.\n", pkey_info.pkey,
@@ -87,10 +95,12 @@ void disableMPK(siginfo_t *si, void *arg) {
 #endif
 }
 
+// In the single step approach, we trap after stepping a single instruction and
+// then re-enable the pkey in the current thread.
 void stepMPKHandle(int sig, siginfo_t *si, void *arg) {
   REPORT("Reached signal handler after single instruction step.\n");
   auto handler = AllocSiteHandler::getOrInit();
-  auto pid_key_info = handler->popPendingPKeyInfo(getpid());
+  auto pid_key_info = handler->getAndRemove(getpid());
   if (pid_key_info)
     enableThreadMPK(arg, pid_key_info.getValue());
 

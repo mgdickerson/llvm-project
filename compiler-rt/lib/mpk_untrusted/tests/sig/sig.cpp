@@ -63,7 +63,7 @@ TEST(SigHandler, SigTest) {
   sa_segv.sa_flags = SA_SIGINFO;
   sigemptyset(&sa_segv.sa_mask);
   sa_segv.sa_sigaction = segv_handler;
-  ASSERT_NE(sigaction(SIGSEGV, &sa_segv, NULL), -1)
+  ASSERT_NE(sigaction(SIGSEGV, &sa_segv, nullptr), -1)
       << "Failed to register sigaction for SIGSEGV.\n";
 
   struct sigaction sa_trap;
@@ -71,10 +71,10 @@ TEST(SigHandler, SigTest) {
   sa_trap.sa_flags = SA_SIGINFO;
   sigemptyset(&sa_trap.sa_mask);
   sa_trap.sa_sigaction = trap_handler;
-  ASSERT_NE(sigaction(SIGTRAP, &sa_trap, NULL), -1)
+  ASSERT_NE(sigaction(SIGTRAP, &sa_trap, nullptr), -1)
       << "Failed to register sigaction for SIGTRAP.\n";
 
-  char *ptr = (char *)mmap(NULL, PAGE_SIZE, PROT_NONE,
+  char *ptr = (char *)mmap(nullptr, PAGE_SIZE, PROT_NONE,
                            MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
   ASSERT_NE(ptr, MAP_FAILED) << "mmap failed.\n";
   strncpy(ptr, "hello world!", 1024);

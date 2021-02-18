@@ -1,11 +1,23 @@
 #include "mpk_formatter.h"
-#include "alloc_site_handler.h"
+
+#include "llvm/ADT/Optional.h"
+#include <fstream>
+#include <iomanip>
+#include <random>
+#include <sstream>
+#include <stdlib.h>
+#include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace __mpk_untrusted {
 
 #define ATTEMPTS 128
 #define ENTROPY 16
 
+// Generates a unique filename to ensure we do not overlap or overwrite
+// previously found faults.
 llvm::Optional<std::string> makeUniqueFilename(std::string path,
                                                std::string base_name,
                                                std::string extension) {
@@ -29,6 +41,8 @@ llvm::Optional<std::string> makeUniqueFilename(std::string path,
   return llvm::None;
 }
 
+// Optionally returns a ofstream if it can successfully create a unique
+// filename.
 llvm::Optional<std::ofstream> makeUniqueStream(std::string path,
                                                std::string base_name,
                                                std::string extension) {
@@ -57,7 +71,8 @@ bool is_directory(std::string directory) {
 
 // Function for handwriting the JSON output we want (to remove dependency on
 // llvm/Support).
-void writeJSON(std::ofstream &OS, std::set<AllocSite> &faultSet) {
+void writeJSON(std::ofstream &OS,
+               std::set<std::shared_ptr<AllocSite>> &faultSet) {
   if (faultSet.size() <= 0)
     return;
 
@@ -65,13 +80,17 @@ void writeJSON(std::ofstream &OS, std::set<AllocSite> &faultSet) {
   int64_t items_remaining = faultSet.size();
   for (auto fault : faultSet) {
     --items_remaining;
-    OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
+    OS << "{ \"id\": " << fault->id() << ", \"pkey\": " << fault->getPkey()
        << " }" << (items_remaining ? "," : "") << "\n";
   }
   OS << "]\n";
 }
 
-bool writeUniqueFile(std::set<AllocSite> &faultSet) {
+// Writes output of the faultSet to a uniquely generated output file to ensure
+// we do not overwrite previously discovered faulting values.
+bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
+  // Currently all results are stored by default in the folder TestResults.
+  // Ensure this folder exists, or create one if it does not.
   std::string TestDirectory = "TestResults";
   if (!is_directory(TestDirectory)) {
     if (mkdir(TestDirectory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
@@ -87,31 +106,33 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
   writeJSON(OS, faultSet);
   OS.flush();
 
-  auto stats = StatsTracker::getOrInit();
-  auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
-  if (!uniqueSOS)
-    return false;
-  std::ofstream &SOS = uniqueSOS.getValue();
-  SOS << "Number of Unique AllocSites Found: " << stats->AllocSitesFound.size()
-      << "\n"
-      << "Number of Unique ReallocSites Found: "
-      << stats->ReallocSitesFound.size() << "\n"
-      << "Number of Times allocHook Called: " << stats->allocHookCalls << "\n"
-      << "Number of Times reallocHook Called: " << stats->reallocHookCalls
-      << "\n"
-      << "Number of Times deallocHook Called: " << stats->deallocHookCalls
-      << "\n";
-  for (auto &key_value : stats->AllocSiteFaultCount) {
-    SOS << "AllocSite(" << key_value.first->id()
-        << ") faults: " << key_value.second << "\n";
+#ifdef MPK_STATS
+  if (AllocSiteCount != 0) {
+    auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
+    if (!uniqueSOS)
+      return false;
+    std::ofstream &SOS = uniqueSOS.getValue();
+    SOS << "Number of Times allocHook Called: " << allocHookCalls << "\n"
+        << "Number of Times reallocHook Called: " << reallocHookCalls << "\n"
+        << "Number of Times deallocHook Called: " << deallocHookCalls << "\n";
+    uint64_t AllocSitesFound = 0;
+    for (uint64_t i = 0; i < AllocSiteCount; i++) {
+      if (AllocSiteUseCounter[i] > 0) {
+        SOS << "AllocSite(" << i << ") faults: " << AllocSiteUseCounter[i]
+            << "\n";
+        ++AllocSitesFound;
+      }
+    }
+    SOS << "Number of Unique AllocSites Found: " << AllocSitesFound << "\n";
+    SOS.flush();
   }
-  SOS.flush();
+#endif
   return true;
 }
 
 // Flush Allocs is to be called on program exit to flush all faulting
 // allocations to disk/file.
-void flushAllocs() {
+void flush_allocs() {
   auto handler = AllocSiteHandler::getOrInit();
   if (handler->faultingAllocs().empty()) {
     REPORT("INFO : No faulting instructions to export, returning.\n");
@@ -126,3 +147,10 @@ void flushAllocs() {
 }
 
 } // namespace __mpk_untrusted
+
+extern "C" {
+
+static void __attribute__((constructor)) register_flush_allocs() {
+  std::atexit(__mpk_untrusted::flush_allocs);
+}
+}

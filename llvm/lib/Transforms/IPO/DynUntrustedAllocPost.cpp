@@ -46,6 +46,7 @@
 #include <vector>
 
 #define DEBUG_TYPE "dyn-untrusted"
+#define MPK_STATS
 
 using namespace llvm;
 
@@ -61,11 +62,13 @@ static cl::opt<bool>
                                 "for test purpose."));
 
 namespace {
+#ifdef MPK_STATS
 // Ensure we assign a unique ID to the same number of hooks as we made in the
 // Pre pass.
 uint64_t total_hooks = 0;
 // Count the number of modified Alloc instructions
 uint64_t modified_inst_count = 0;
+#endif
 
 /// A mapping between hook function and the position of the UniqueID argument.
 const static std::map<std::string, int> patchArgIndexMap = {
@@ -89,6 +92,10 @@ public:
   ConstantInt *getConstID(Module &M) {
     return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()),
                                   id++);
+  }
+
+  ConstantInt *getConstIntCount(Module &M) {
+    return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), id);
   }
 };
 
@@ -130,7 +137,15 @@ public:
 
     removeInlineAttr(M);
 
+#ifdef MPK_STATS
     printStats(M);
+
+    // If MPK_STATS is enables, then we create a global containing the value of
+    // the total number of allocation sites
+    GlobalVariable *AllocSiteTotal = cast<GlobalVariable>(M.getOrInsertGlobal(
+        "AllocSiteTotal", IntegerType::getInt64Ty(M.getContext())));
+    AllocSiteTotal->setInitializer(IDG.getConstIntCount(M));
+#endif
 
     return true;
   }
@@ -263,7 +278,9 @@ public:
           auto id = IDG.getConstID(M);
           CS.setArgument(index, id);
 
+#ifdef MPK_STATS
           ++total_hooks;
+#endif
 
           if (remove_hooks)
             hookList.push_back(callInst);
@@ -309,7 +326,9 @@ public:
 
     inst->setCalledFunction(repl_func);
     LLVM_DEBUG(errs() << "Modified CallInstruction: " << *inst << "\n");
+#ifdef MPK_STATS
     ++modified_inst_count;
+#endif
   }
 
   void removeHooks(Module &M) {
@@ -343,6 +362,7 @@ public:
     }
   }
 
+#ifdef MPK_STATS
   void printStats(Module &M) {
     std::string TestDirectory = "TestResults";
     if (!llvm::sys::fs::is_directory(TestDirectory))
@@ -369,6 +389,7 @@ public:
       return;
     }
   }
+#endif
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<CallGraphWrapperPass>();
