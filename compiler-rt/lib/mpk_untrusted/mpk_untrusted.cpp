@@ -1,4 +1,7 @@
 #include "mpk_untrusted.h"
+#include "mpk_fault_handler.h"
+#include "mpk_common.h"
+#include "sanitizer_common/sanitizer_common.h"
 
 #ifdef MPK_STATS
 std::atomic<uint64_t>* AllocSiteUseCounter(nullptr);
@@ -9,6 +12,7 @@ uint64_t AllocSiteCount = 0;
 #endif
 
 extern "C" {
+extern uint64_t __attribute__((weak)) AllocSiteTotal = -1;
 
 /// Constructor will set up the segMPKHandle fault handler, and additionally
 /// the stepMPKHandle when testing single stepping.
@@ -40,9 +44,5 @@ void mpk_untrusted_constructor() {
   sa_trap.sa_sigaction = __mpk_untrusted::stepMPKHandle;
   sigaction(SIGTRAP, &sa_trap, NULL);
 #endif
-
-  // Add final action flushAllocs() to export faulting allocations
-  // to a JSON file.
-  std::atexit(__mpk_untrusted::flushAllocs);
 }
 }

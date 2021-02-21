@@ -98,7 +98,7 @@ bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
       << "Number of Times deallocHook Called: " << deallocHookCalls
       << "\n";
   uint64_t AllocSitesFound = 0;
-  for (uint64_t i = 0; i < AllocSiteTotal; i++) {
+  for (uint64_t i = 0; i < AllocSiteCount; i++) {
     if (AllocSiteUseCounter[i] > 0) {
       SOS << "AllocSite(" << i << ") faults: " << AllocSiteUseCounter[i] << "\n";
       ++AllocSitesFound;
@@ -127,3 +127,11 @@ void flushAllocs() {
 }
 
 } // namespace __mpk_untrusted
+
+extern "C" {
+
+static void __attribute__((constructor)) register_flush_allocs() {
+  std::atexit(__mpk_untrusted::flush_allocs());
+}
+
+}

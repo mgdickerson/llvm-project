@@ -17,8 +17,12 @@
 
 namespace __mpk_untrusted {
 
-void flushAllocs();
+void flush_allocs();
 
 } // namespace __mpk_untrusted
+
+extern "C" {
+__attribute__((visibility("default"))) static void __attribute__((constructor)) register_flush_allocs();
+}
 
 #endif
