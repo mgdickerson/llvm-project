@@ -112,7 +112,7 @@ bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
 
 // Flush Allocs is to be called on program exit to flush all faulting
 // allocations to disk/file.
-void flushAllocs() {
+void flush_allocs() {
   auto handler = AllocSiteHandler::getOrInit();
   if (handler->faultingAllocs().empty()) {
     REPORT("INFO : No faulting instructions to export, returning.\n");
@@ -131,7 +131,7 @@ void flushAllocs() {
 extern "C" {
 
 static void __attribute__((constructor)) register_flush_allocs() {
-  std::atexit(__mpk_untrusted::flush_allocs());
+  std::atexit(__mpk_untrusted::flush_allocs);
 }
 
 }
