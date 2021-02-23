@@ -181,9 +181,11 @@ public:
     alloc->addPkey(pkey);
 
 #ifdef MPK_STATS
-    // Increment the count of the allocation faulting
-    assert((uint64_t)alloc->id() < AllocSiteCount && alloc->id() >= 0);
-    AllocSiteUseCounter[alloc->id()]++;
+    if (AllocSiteCount != 0) {
+      // Increment the count of the allocation faulting
+      assert((uint64_t)alloc->id() < AllocSiteCount && alloc->id() >= 0);
+      AllocSiteUseCounter[alloc->id()]++;
+    }
 #endif
 
     const std::lock_guard<std::mutex> fault_set_insertion_guard(fault_set_mx);
@@ -193,8 +195,10 @@ public:
       assoc->addPkey(pkey);
       fault_set.insert(assoc);
 #ifdef MPK_STATS
-      assert((uint64_t)assoc->id() < AllocSiteCount && assoc->id() >= 0);
-      AllocSiteUseCounter[assoc->id()]++;
+      if (AllocSiteCount != 0) {
+        assert((uint64_t)assoc->id() < AllocSiteCount && assoc->id() >= 0);
+        AllocSiteUseCounter[assoc->id()]++;
+      }
 #endif
     }
   }
@@ -208,9 +212,10 @@ public:
     pkey_by_tid_map.insert(std::pair<pid_t, PendingPKeyInfo>(threadID, pkey));
   }
 
-  /// For single instruction stepping, this will pop the associated PKey
-  /// information for a given thread-id from the pkey_by_tid_map
-  llvm::Optional<PendingPKeyInfo> popPendingPKeyInfo(pid_t threadID) {
+  /// For single instruction stepping, this will get the associated PKey
+  /// information for a given thread-id from the pkey_by_tid_map, then remove
+  /// it from the mapping.
+  llvm::Optional<PendingPKeyInfo> getAndRemove(pid_t threadID) {
     // Obtain map key
     const std::lock_guard<std::mutex> pkey_map_guard(pkey_tid_map_mx);
 
@@ -224,7 +229,10 @@ public:
     return ret_val;
   }
 
-  std::set<std::shared_ptr<AllocSite>> &faultingAllocs() { return fault_set; }
+  std::set<std::shared_ptr<AllocSite>> &faultingAllocs() { 
+    const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
+    return fault_set; 
+  }
 };
 } // namespace __mpk_untrusted
 extern "C" {

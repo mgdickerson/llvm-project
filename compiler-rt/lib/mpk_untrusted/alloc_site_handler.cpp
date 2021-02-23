@@ -39,7 +39,8 @@ void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   REPORT("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
 
 #ifdef MPK_STATS
-  allocHookCalls++;
+  if (AllocSiteCount != 0)
+    allocHookCalls++;
 #endif
 }
 
@@ -71,7 +72,8 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
          newPtr, uniqueID);
 
 #ifdef MPK_STATS
-  reallocHookCalls++;
+  if (AllocSiteCount != 0)
+    reallocHookCalls++;
 #endif
 }
 
@@ -81,7 +83,8 @@ void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   REPORT("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
 
 #ifdef MPK_STATS
-  deallocHookCalls++;
+  if (AllocSiteCount != 0)
+    deallocHookCalls++;
 #endif
 }
 }

@@ -87,7 +87,7 @@ void disableMPK(siginfo_t *si, void *arg) {
 void stepMPKHandle(int sig, siginfo_t *si, void *arg) {
   REPORT("Reached signal handler after single instruction step.\n");
   auto handler = AllocSiteHandler::getOrInit();
-  auto pid_key_info = handler->popPendingPKeyInfo(getpid());
+  auto pid_key_info = handler->getAndRemove(getpid());
   if (pid_key_info)
     enableThreadMPK(arg, pid_key_info.getValue());
 

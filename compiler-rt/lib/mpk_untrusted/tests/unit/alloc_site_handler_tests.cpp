@@ -100,7 +100,7 @@ void *setAndGetPKeyInfo(void *__unused) {
   PKeyInfo pkinf(1, PKEY_DISABLE_ACCESS);
   handle->storePKeyInfo(gettid(), pkinf);
   EXPECT_EQ(pkinf.access_rights,
-            handle->popPendingPKeyInfo(gettid()).getValue().access_rights);
+            handle->getAndRemove(gettid()).getValue().access_rights);
   pthread_exit(NULL);
 }
 

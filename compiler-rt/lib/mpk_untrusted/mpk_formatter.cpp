@@ -88,24 +88,26 @@ bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
   OS.flush();
 
 #ifdef MPK_STATS
-  auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
-  if (!uniqueSOS)
-    return false;
-  std::ofstream &SOS = uniqueSOS.getValue();
-  SOS << "Number of Times allocHook Called: " << allocHookCalls << "\n"
-      << "Number of Times reallocHook Called: " << reallocHookCalls
-      << "\n"
-      << "Number of Times deallocHook Called: " << deallocHookCalls
-      << "\n";
-  uint64_t AllocSitesFound = 0;
-  for (uint64_t i = 0; i < AllocSiteCount; i++) {
-    if (AllocSiteUseCounter[i] > 0) {
-      SOS << "AllocSite(" << i << ") faults: " << AllocSiteUseCounter[i] << "\n";
-      ++AllocSitesFound;
+  if (AllocSiteCount != 0) {
+    auto uniqueSOS = makeUniqueStream(TestDirectory, "runtime-stats", "stat");
+    if (!uniqueSOS)
+      return false;
+    std::ofstream &SOS = uniqueSOS.getValue();
+    SOS << "Number of Times allocHook Called: " << allocHookCalls << "\n"
+        << "Number of Times reallocHook Called: " << reallocHookCalls
+        << "\n"
+        << "Number of Times deallocHook Called: " << deallocHookCalls
+        << "\n";
+    uint64_t AllocSitesFound = 0;
+    for (uint64_t i = 0; i < AllocSiteCount; i++) {
+      if (AllocSiteUseCounter[i] > 0) {
+        SOS << "AllocSite(" << i << ") faults: " << AllocSiteUseCounter[i] << "\n";
+        ++AllocSitesFound;
+      }
     }
+    SOS << "Number of Unique AllocSites Found: " << AllocSitesFound << "\n";
+    SOS.flush();
   }
-  SOS << "Number of Unique AllocSites Found: " << AllocSitesFound << "\n";
-  SOS.flush();
 #endif
   return true;
 }

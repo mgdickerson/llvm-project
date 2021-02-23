@@ -41,10 +41,12 @@
 #include <string>
 
 #define DEBUG_TYPE "dyn-untrusted"
+#define MPK_STATS
 
 using namespace llvm;
 
 namespace {
+#ifdef MPK_STATS
 // Tracker to count number of hook calls we create.
 uint64_t hook_count = 0;
 
@@ -52,6 +54,7 @@ uint64_t hook_count = 0;
 uint64_t alloc_hook_counter = 0;
 uint64_t realloc_hook_counter = 0;
 uint64_t dealloc_hook_counter = 0;
+#endif
 
 ConstantInt *getDummyID(Module &M) {
   return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
@@ -112,8 +115,10 @@ public:
     // Remove inline attribute from functions for inlining.
     removeInlineAttr(M);
 
+#ifdef MPK_STATS
     // Print stats.
     printStats(M);
+#endif
     return true;
   }
 
@@ -124,18 +129,24 @@ public:
 
     if (F == M.getFunction("__rust_alloc") ||
         F == M.getFunction("__rust_alloc_zeroed")) {
+#ifdef MPK_STATS
       alloc_hook_counter++;
+#endif
       return CallInst::Create(
           (Function *)allocHook,
           {CS->getInstruction(), CS->getArgument(0), getDummyID(M)});
     } else if (F == M.getFunction("__rust_realloc")) {
+#ifdef MPK_STATS
       realloc_hook_counter++;
+#endif
       return CallInst::Create((Function *)reallocHook,
                               {CS->getInstruction(), CS->getArgument(3),
                                CS->getArgument(0), CS->getArgument(1),
                                getDummyID(M)});
     } else if (F == M.getFunction("__rust_dealloc")) {
+#ifdef MPK_STATS
       dealloc_hook_counter++;
+#endif
       return CallInst::Create(
           (Function *)deallocHook,
           {CS->getArgument(0), CS->getArgument(1), getDummyID(M)});
@@ -191,12 +202,15 @@ public:
 
           IRBuilder<> IRB(&*NextInst);
           IRB.Insert(newHook);
+#ifdef MPK_STATS
           ++hook_count;
+#endif
         }
       }
     }
   }
 
+#ifdef MPK_STATS
   void printStats(Module &M) {
     std::string TestDirectory = "TestResults";
     if (!llvm::sys::fs::is_directory(TestDirectory))
@@ -226,6 +240,7 @@ public:
       return;
     }
   }
+#endif
 
   /// Iterate all Functions of Module M, remove NoInline attribute from
   /// Functions with RustAllocator attribute.

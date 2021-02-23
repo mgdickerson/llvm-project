@@ -12,7 +12,7 @@ uint64_t AllocSiteCount = 0;
 #endif
 
 extern "C" {
-extern uint64_t __attribute__((weak)) AllocSiteTotal = -1;
+extern uint64_t __attribute__((weak)) AllocSiteTotal = 0;
 
 /// Constructor will set up the segMPKHandle fault handler, and additionally
 /// the stepMPKHandle when testing single stepping.
@@ -20,7 +20,9 @@ void mpk_untrusted_constructor() {
 #ifdef MPK_STATS
   // If MPK_STATS is defined, grab the total allocation sites value and initialize dynamic array.
   // std::atomic should be 0 initialized according to docs.
-  AllocSiteUseCounter = new std::atomic<uint64_t>[AllocSiteTotal]();
+  if (AllocSiteTotal != 0) {
+    AllocSiteUseCounter = new std::atomic<uint64_t>[AllocSiteTotal]();
+  }
   AllocSiteCount = AllocSiteTotal;
 #endif
 
