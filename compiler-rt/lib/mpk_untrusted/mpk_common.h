@@ -16,7 +16,7 @@
 #include <atomic>
 
 // Pointer to the global array tracking number of faults per allocation site
-extern std::atomic<uint64_t>* AllocSiteUseCounter;
+extern std::atomic<uint64_t> *AllocSiteUseCounter;
 extern std::atomic<uint64_t> allocHookCalls;
 extern std::atomic<uint64_t> reallocHookCalls;
 extern std::atomic<uint64_t> deallocHookCalls;

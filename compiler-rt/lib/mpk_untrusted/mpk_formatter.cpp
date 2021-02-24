@@ -1,5 +1,15 @@
 #include "mpk_formatter.h"
-#include "alloc_site_handler.h"
+
+#include "llvm/ADT/Optional.h"
+#include <fstream>
+#include <iomanip>
+#include <random>
+#include <sstream>
+#include <stdlib.h>
+#include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace __mpk_untrusted {
 
@@ -57,7 +67,8 @@ bool is_directory(std::string directory) {
 
 // Function for handwriting the JSON output we want (to remove dependency on
 // llvm/Support).
-void writeJSON(std::ofstream &OS, std::set<std::shared_ptr<AllocSite>> &faultSet) {
+void writeJSON(std::ofstream &OS,
+               std::set<std::shared_ptr<AllocSite>> &faultSet) {
   if (faultSet.size() <= 0)
     return;
 
@@ -94,14 +105,13 @@ bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
       return false;
     std::ofstream &SOS = uniqueSOS.getValue();
     SOS << "Number of Times allocHook Called: " << allocHookCalls << "\n"
-        << "Number of Times reallocHook Called: " << reallocHookCalls
-        << "\n"
-        << "Number of Times deallocHook Called: " << deallocHookCalls
-        << "\n";
+        << "Number of Times reallocHook Called: " << reallocHookCalls << "\n"
+        << "Number of Times deallocHook Called: " << deallocHookCalls << "\n";
     uint64_t AllocSitesFound = 0;
     for (uint64_t i = 0; i < AllocSiteCount; i++) {
       if (AllocSiteUseCounter[i] > 0) {
-        SOS << "AllocSite(" << i << ") faults: " << AllocSiteUseCounter[i] << "\n";
+        SOS << "AllocSite(" << i << ") faults: " << AllocSiteUseCounter[i]
+            << "\n";
         ++AllocSitesFound;
       }
     }
@@ -135,5 +145,4 @@ extern "C" {
 static void __attribute__((constructor)) register_flush_allocs() {
   std::atexit(__mpk_untrusted::flush_allocs);
 }
-
 }

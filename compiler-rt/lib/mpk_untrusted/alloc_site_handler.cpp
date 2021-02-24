@@ -52,6 +52,9 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
                  int64_t oldSize, int64_t uniqueID) {
   // Get the AllocSiteHandler and the old AllocSite for the associated oldPtr.
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
+  // This could in theory add an Error Alloc to the associated set. This would
+  // only occur in a situation in where there is a reallocation of a pointer not
+  // being tracked or removed in another thread.
   auto assocSite = handler->getAllocSite(oldPtr);
 
   // Get the previously associated set from the site being re-allocated and

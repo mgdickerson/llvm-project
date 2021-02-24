@@ -7,15 +7,42 @@
 
 #include <cassert>
 #include <map>
-#include <unordered_map>
 #include <memory>
 #include <mutex>
 #include <set>
+#include <unordered_map>
 
 typedef int8_t *rust_ptr;
 
 namespace __mpk_untrusted {
 
+/**
+ * @brief A class for tracking allocation metadata for a given allocation site
+ * in target source code.
+ *
+ * @param ptr Pointer to allocated memory.
+ * @param size Size of given allocation.
+ * @param uniqueID A unique identifier to track faulting allocations in the
+ * runtime back to locations in source code.
+ * @param pkey The Pkey that the given AllocationSite faulted on attempted
+ * access.
+ * @param associatedSet Set for tracking re-allocations across AllocationSites.
+ *
+ *
+ * @note For each call to alloc (and realloc), an AllocSite will be created to
+ * track the pointer of the allocation, the size of the allocation, and a
+ * UniqueID for tracking the call to alloc back to its position in the source
+ * code. This information is intended to be used in the compilation process for
+ * changing Allocation Site found to be unsafe to unsafe alloc calls. Calls to
+ * realloc will first find AllocSites that are being tracked under the given
+ * pointer, then add them to the associated set of the newly generated AllocSite
+ * to ensure that if a reallocated site is found to be unsafe, the original
+ * allocation can also be marked unsafe.
+ *
+ * @note A note on thread safety: The only parameter that is changed at any
+ * point after object creation is the PKey that the object faults on, thus this
+ * is protected behind a mutex for setting and accessing.
+ */
 class AllocSite {
   typedef std::set<std::shared_ptr<AllocSite>> alloc_set_type;
 
@@ -48,7 +75,7 @@ public:
 
   // Note : containsPtr contains potentially wrapping arithmetic. If a ptr
   // and the allocations size exceed max pointer size, then any pointer
-  // searched for in the valid range will return False, as it cannot satisfy 
+  // searched for in the valid range will return False, as it cannot satisfy
   // both requirments in the check.
   bool containsPtr(rust_ptr ptrCmp) {
     // TODO : Note, might be important to cast pointers to uintptr_t type for
@@ -62,14 +89,14 @@ public:
 
   bool isValid() { return (ptr != nullptr) && (size > 0) && (uniqueID >= 0); }
 
-  void addPkey(uint32_t faultPkey) { 
+  void addPkey(uint32_t faultPkey) {
     const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
-    pkey = faultPkey; 
+    pkey = faultPkey;
   }
 
-  uint32_t getPkey() { 
+  uint32_t getPkey() {
     const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
-    return pkey; 
+    return pkey;
   }
 
   alloc_set_type getAssociatedSet() { return associatedSet; }
@@ -79,7 +106,10 @@ public:
 
 typedef pid_t thread_id;
 
-/// PendingPKeyInfo tracks the access rights for a given PKey. This is mapped together with a thread_id for our single stepping approach to ensure that we can restore proper pkey access properties for a given thread after stepping over the faulting instruction.
+/// PendingPKeyInfo tracks the access rights for a given PKey. This is mapped
+/// together with a thread_id for our single stepping approach to ensure that we
+/// can restore proper pkey access properties for a given thread after stepping
+/// over the faulting instruction.
 struct PendingPKeyInfo {
 public:
   uint32_t pkey;
@@ -205,17 +235,18 @@ public:
 
   /// For single instruction stepping, this function will store a given PKey's
   /// permissions for a given thread-id
-  void storePendingPKeyInfo(pid_t threadID, PendingPKeyInfo pkey) {
+  void storePendingPKeyInfo(thread_id threadID, PendingPKeyInfo pkeyinfo) {
     // Obtain map key
     const std::lock_guard<std::mutex> pkey_map_guard(pkey_tid_map_mx);
 
-    pkey_by_tid_map.insert(std::pair<pid_t, PendingPKeyInfo>(threadID, pkey));
+    pkey_by_tid_map.insert(
+        std::pair<pid_t, PendingPKeyInfo>(threadID, pkeyinfo));
   }
 
   /// For single instruction stepping, this will get the associated PKey
   /// information for a given thread-id from the pkey_by_tid_map, then remove
   /// it from the mapping.
-  llvm::Optional<PendingPKeyInfo> getAndRemove(pid_t threadID) {
+  llvm::Optional<PendingPKeyInfo> getAndRemove(thread_id threadID) {
     // Obtain map key
     const std::lock_guard<std::mutex> pkey_map_guard(pkey_tid_map_mx);
 
@@ -229,9 +260,9 @@ public:
     return ret_val;
   }
 
-  std::set<std::shared_ptr<AllocSite>> &faultingAllocs() { 
+  std::set<std::shared_ptr<AllocSite>> &faultingAllocs() {
     const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
-    return fault_set; 
+    return fault_set;
   }
 };
 } // namespace __mpk_untrusted

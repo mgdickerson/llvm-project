@@ -11,6 +11,8 @@
 
 namespace __mpk_untrusted {
 
+const uint32_t PKEY_DEFAULT_VALUE = 1;
+
 // For this test to work properly, we have to ensure all other tests
 // remove all allocations that they have added to the map.
 TEST(getAllocSite, EmptyMap) {
@@ -22,8 +24,8 @@ TEST(getAllocSite, EmptyMap) {
 TEST(getAllocSite, InvalidPreAddress) {
   auto handle = AllocSiteHandler::getOrInit();
   auto ptr = (rust_ptr)malloc(sizeof(uint64_t));
-  handle->insertAllocSite(
-      ptr, std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1));
+  handle->insertAllocSite(ptr, std::make_shared<AllocSite>(
+                                   ptr, sizeof(uint64_t), PKEY_DEFAULT_VALUE));
   auto decPtr = (rust_ptr)((uintptr_t)ptr - 1);
   auto allocSite = handle->getAllocSite(decPtr);
   EXPECT_EQ(allocSite.get(), AllocSite::error().get());
@@ -33,8 +35,8 @@ TEST(getAllocSite, InvalidPreAddress) {
 TEST(getAllocSite, InvalidPostAddress) {
   auto handle = AllocSiteHandler::getOrInit();
   auto ptr = (rust_ptr)malloc(sizeof(uint64_t));
-  handle->insertAllocSite(
-      ptr, std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1));
+  handle->insertAllocSite(ptr, std::make_shared<AllocSite>(
+                                   ptr, sizeof(uint64_t), PKEY_DEFAULT_VALUE));
   auto incPtr = (rust_ptr)((uintptr_t)ptr + sizeof(uint64_t));
   auto allocSite = handle->getAllocSite(incPtr);
   EXPECT_EQ(allocSite.get(), AllocSite::error().get());
@@ -45,10 +47,10 @@ TEST(getAllocSite, InvalidBetweenAddress) {
   auto handle = AllocSiteHandler::getOrInit();
   auto ptr = (rust_ptr)malloc(sizeof(uint64_t));
   auto ptr2 = (rust_ptr)((uintptr_t)ptr + (sizeof(uint64_t) * 2));
-  handle->insertAllocSite(
-      ptr, std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1));
-  handle->insertAllocSite(
-      ptr2, std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1));
+  handle->insertAllocSite(ptr, std::make_shared<AllocSite>(
+                                   ptr, sizeof(uint64_t), PKEY_DEFAULT_VALUE));
+  handle->insertAllocSite(ptr2, std::make_shared<AllocSite>(
+                                    ptr, sizeof(uint64_t), PKEY_DEFAULT_VALUE));
   auto decPtr = (rust_ptr)((uintptr_t)ptr + (sizeof(uint64_t) * 1));
   auto allocSite = handle->getAllocSite(decPtr);
   EXPECT_EQ(allocSite.get(), AllocSite::error().get());
@@ -60,10 +62,11 @@ TEST(getAllocSite, ValidBetweenAddress) {
   auto handle = AllocSiteHandler::getOrInit();
   auto ptr = (rust_ptr)malloc(sizeof(uint64_t));
   auto ptr2 = (rust_ptr)((uintptr_t)ptr + (sizeof(uint64_t) * 4));
-  auto newAllocSite = std::make_shared<AllocSite>(ptr, sizeof(uint64_t) * 2, 1);
+  auto newAllocSite = std::make_shared<AllocSite>(ptr, sizeof(uint64_t) * 2,
+                                                  PKEY_DEFAULT_VALUE);
   handle->insertAllocSite(ptr, newAllocSite);
-  handle->insertAllocSite(
-      ptr2, std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1));
+  handle->insertAllocSite(ptr2, std::make_shared<AllocSite>(
+                                    ptr, sizeof(uint64_t), PKEY_DEFAULT_VALUE));
   auto decPtr = (rust_ptr)((uintptr_t)ptr + (sizeof(uint64_t) * 1));
   auto getAllocSite = handle->getAllocSite(decPtr);
   EXPECT_EQ(getAllocSite.get(), newAllocSite.get());
@@ -71,37 +74,68 @@ TEST(getAllocSite, ValidBetweenAddress) {
   handle->removeAllocSite(ptr2);
 }
 
+// Note: It should be impossible to add a nullptr allocation site to the map
+TEST(getAllocSite, nullptrAddress) {
+  auto handle = AllocSiteHandler::getOrInit();
+  auto randomPtr = (rust_ptr)malloc(sizeof(uint64_t));
+  auto errorSite = std::make_shared<AllocSite>(randomPtr, sizeof(uint64_t),
+                                               PKEY_DEFAULT_VALUE);
+  handle->insertAllocSite(nullptr, errorSite);
+  auto nullSite = handle->getAllocSite(nullptr);
+  EXPECT_EQ(errorSite.get(), nullSite.get());
+}
+
 TEST(getAllocSite, PointerArithmeticOverflowWraps) {
-  auto ptr = (rust_ptr)(-1); // max pointer size
-  auto newAllocSite = std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1);
-  EXPECT_FALSE(newAllocSite->containsPtr(++ptr));
+  auto ptr = (uintptr_t)(-1); // max pointer size
+  auto rPtr = (rust_ptr)ptr;
+  auto newAllocSite =
+      std::make_shared<AllocSite>(rPtr, sizeof(uint64_t), PKEY_DEFAULT_VALUE);
+  EXPECT_FALSE(newAllocSite->containsPtr(++rPtr));
 }
 
 TEST(faultingAllocs, addFaultAlloc) {
   auto handle = AllocSiteHandler::getOrInit();
   auto ptr = (rust_ptr)malloc(sizeof(uint64_t));
-  auto newAllocSite = std::make_shared<AllocSite>(ptr, sizeof(uint64_t), 1);
+  auto newAllocSite =
+      std::make_shared<AllocSite>(ptr, sizeof(uint64_t), PKEY_DEFAULT_VALUE);
   handle->insertAllocSite(ptr, newAllocSite);
   handle->addFaultAlloc(ptr, 1);
   auto fault_set = handle->faultingAllocs();
   if (fault_set.empty())
     FAIL() << "Error Adding AllocSite to error set!\n";
 
-  AllocSite ac = *fault_set.begin();
-  EXPECT_EQ(ac.getPtr(), newAllocSite->getPtr());
-  EXPECT_EQ(ac.id(), newAllocSite->id());
+  EXPECT_EQ((*fault_set.begin())->getPtr(), newAllocSite->getPtr());
+  EXPECT_EQ((*fault_set.begin())->id(), newAllocSite->id());
   handle->removeAllocSite(ptr);
+  fault_set.clear();
 }
+
+TEST(pkeyMap, negativeThreadID) {
+  auto handle = AllocSiteHandler::getOrInit();
+  PendingPKeyInfo pkinf(1, PKEY_DISABLE_ACCESS);
+  handle->storePendingPKeyInfo(-1, pkinf);
+  EXPECT_EQ(pkinf.access_rights,
+            handle->getAndRemove(-1).getValue().access_rights);
+}
+
+TEST(pkeyMap, emptyMap) {
+  auto handle = AllocSiteHandler::getOrInit();
+  if (handle->getAndRemove(gettid()))
+    FAIL() << "Getting pkey info while map is empty should return Null "
+              "optional.\n";
+}
+
+// TODO : How to test thread locks are working as intended?
 
 const int NUM_THREADS = 10;
 
 void *setAndGetPKeyInfo(void *__unused) {
   auto handle = AllocSiteHandler::getOrInit();
-  PKeyInfo pkinf(1, PKEY_DISABLE_ACCESS);
-  handle->storePKeyInfo(gettid(), pkinf);
+  PendingPKeyInfo pkinf(1, PKEY_DISABLE_ACCESS);
+  handle->storePendingPKeyInfo(gettid(), pkinf);
   EXPECT_EQ(pkinf.access_rights,
             handle->getAndRemove(gettid()).getValue().access_rights);
-  pthread_exit(NULL);
+  pthread_exit(nullptr);
 }
 
 TEST(pkeyMap, insertAndRetrievePKeyInfo) {
@@ -110,7 +144,7 @@ TEST(pkeyMap, insertAndRetrievePKeyInfo) {
   void *status;
 
   for (pthread_t &thread_id : threads) {
-    rc = pthread_create(&thread_id, NULL, setAndGetPKeyInfo, NULL);
+    rc = pthread_create(&thread_id, nullptr, setAndGetPKeyInfo, nullptr);
     if (rc)
       FAIL() << "Error: Unable to create thread.\n";
   }

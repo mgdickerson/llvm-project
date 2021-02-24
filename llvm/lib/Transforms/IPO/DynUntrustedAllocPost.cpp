@@ -140,8 +140,10 @@ public:
 #ifdef MPK_STATS
     printStats(M);
 
-    // If MPK_STATS is enables, then we create a global containing the value of the total number of allocation sites
-    GlobalVariable *AllocSiteTotal = cast<GlobalVariable>(M.getOrInsertGlobal("AllocSiteTotal", IntegerType::getInt64Ty(M.getContext())));
+    // If MPK_STATS is enables, then we create a global containing the value of
+    // the total number of allocation sites
+    GlobalVariable *AllocSiteTotal = cast<GlobalVariable>(M.getOrInsertGlobal(
+        "AllocSiteTotal", IntegerType::getInt64Ty(M.getContext())));
     AllocSiteTotal->setInitializer(IDG.getConstIntCount(M));
 #endif
 
