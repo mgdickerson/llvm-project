@@ -14,7 +14,7 @@ namespace __mpk_untrusted {
 const uint32_t PKEY_DEFAULT_VALUE = 1;
 
 TEST(AllocSite, invalidAllocSite) {
-  EXPECT_DEATH_IF_SUPPORTED(AllocSite(nullptr, 0, -1), "test");
+  EXPECT_DEATH_IF_SUPPORTED(AllocSite(nullptr, 0, -1), "");
 }
 
 // For this test to work properly, we have to ensure all other tests
@@ -78,7 +78,10 @@ TEST(getAllocSite, ValidBetweenAddress) {
   handle->removeAllocSite(ptr2);
 }
 
-// Note: It should be impossible to add a nullptr allocation site to the map
+// Note: No Allocation Site should have a nullptr, thus nullptr should not map
+// to any allocation site. However, in this contrived example, if an Allocation
+// Site without a nullptr in its metadata were assigned to nullptr in the map,
+// it would retrieve that AllocSite.
 TEST(getAllocSite, nullptrAddress) {
   auto handle = AllocSiteHandler::getOrInit();
   auto randomPtr = (rust_ptr)malloc(sizeof(uint64_t));
@@ -122,7 +125,7 @@ TEST(pkeyMap, negativeThreadID) {
             handle->getAndRemove(-1).getValue().access_rights);
 }
 
-TEST(pkeyMap, emptyMap) {
+TEST(pkeyMap, getAndRemoveEmptyMapReturnsNone) {
   auto handle = AllocSiteHandler::getOrInit();
   if (handle->getAndRemove(gettid()))
     FAIL() << "Getting pkey info while map is empty should return Null "
@@ -130,34 +133,5 @@ TEST(pkeyMap, emptyMap) {
 }
 
 // TODO : How to test thread locks are working as intended?
-
-const int NUM_THREADS = 10;
-
-void *setAndGetPKeyInfo(void *__unused) {
-  auto handle = AllocSiteHandler::getOrInit();
-  PendingPKeyInfo pkinf(1, PKEY_DISABLE_ACCESS);
-  handle->storePendingPKeyInfo(gettid(), pkinf);
-  EXPECT_EQ(pkinf.access_rights,
-            handle->getAndRemove(gettid()).getValue().access_rights);
-  pthread_exit(nullptr);
-}
-
-TEST(pkeyMap, insertAndRetrievePKeyInfo) {
-  pthread_t threads[NUM_THREADS];
-  int rc;
-  void *status;
-
-  for (pthread_t &thread_id : threads) {
-    rc = pthread_create(&thread_id, nullptr, setAndGetPKeyInfo, nullptr);
-    if (rc)
-      FAIL() << "Error: Unable to create thread.\n";
-  }
-
-  for (auto thread_id : threads) {
-    rc = pthread_join(thread_id, &status);
-    if (rc)
-      FAIL() << "Error: Unable to join thread.\n";
-  }
-}
 
 } // namespace __mpk_untrusted
