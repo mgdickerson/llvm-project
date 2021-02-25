@@ -40,6 +40,9 @@ namespace __mpk_untrusted {
 
 /**
  * Wrapper for getting PKRU pointer from ucontext.
+ *
+ * @param ctxt Pointer to ucontext.
+ * @return Pointer to PKRU register in ucontext.
  */
 __uint32_t *pkru_ptr(void *ctxt);
 

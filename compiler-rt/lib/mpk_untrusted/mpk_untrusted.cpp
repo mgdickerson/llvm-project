@@ -8,7 +8,7 @@ std::atomic<uint64_t> *AllocSiteUseCounter(nullptr);
 std::atomic<uint64_t> allocHookCalls(0);
 std::atomic<uint64_t> reallocHookCalls(0);
 std::atomic<uint64_t> deallocHookCalls(0);
-uint64_t AllocSiteCount = 0;
+std::atomic<uint64_t> AllocSiteCount(0);
 #endif
 
 extern "C" {

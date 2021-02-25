@@ -89,6 +89,9 @@ public:
 
   bool isValid() { return (ptr != nullptr) && (size > 0) && (uniqueID >= 0); }
 
+  // When a given allocation site faults, we add the pkey that the request
+  // faulted on and add it to the allocation site metadata to provide insight
+  // into which compartment attempted to access the information.
   void addPkey(uint32_t faultPkey) {
     const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
     pkey = faultPkey;
@@ -99,6 +102,8 @@ public:
     return pkey;
   }
 
+  // For use with re-allocation tracking. The associated set should contain all
+  // previous allocation sites for a given reallocated pointer.
   alloc_set_type getAssociatedSet() { return associatedSet; }
 
   bool operator<(const AllocSite &ac) const { return uniqueID < ac.id(); }
@@ -106,10 +111,14 @@ public:
 
 typedef pid_t thread_id;
 
-/// PendingPKeyInfo tracks the access rights for a given PKey. This is mapped
-/// together with a thread_id for our single stepping approach to ensure that we
-/// can restore proper pkey access properties for a given thread after stepping
-/// over the faulting instruction.
+/**
+ * @brief PendingPKeyInfo tracks the pkey and access rights for a pending single
+ * step instruction for a given thread (for use with our single stepping
+ * approach).
+ *
+ * @param pkey Faulting PKey to be restored.
+ * @param access_rights The previous access rights for the given PKey.
+ */
 struct PendingPKeyInfo {
 public:
   uint32_t pkey;
@@ -118,6 +127,23 @@ public:
       : pkey(pkey), access_rights(access_rights) {}
 };
 
+/**
+ * @brief A Class that handles mapping of pointers to allocation sites,
+ * collecting the set of faulted allocation sites, and tracking PendingPKeyInfo
+ * in multi-threaded single step environments.
+ *
+ * @param handle Singleton AllocSiteHandler pointer.
+ * @param allocation_map Maps the pointer result from an alloc or realloc call
+ * to its Allocation Site metadata.
+ * @param fault_set Contains the set of faulted Allocation Sites.
+ * @param pkey_by_tid_map Maps a given thread-id to its PendingPKeyInfo.
+ *
+ * @note AllocSiteHandler is accessed through a shared pointer to handle so that
+ * all threads access the same handler and data can be synchronized between
+ * threads. To handle synchronization and allow for concurrent operations on the
+ * separate data fields, each of the listed parameters above have an associated
+ * mutex.
+ */
 class AllocSiteHandler {
 private:
   // Singleton AllocSiteHandler pointer
@@ -197,12 +223,14 @@ public:
     return AllocSite::error();
   }
 
-  // TODO : Likely need to add a mutex for inserting faulting allocs.
+  // Add a faulting allocation site to the fault_set with the given pkey.
   void addFaultAlloc(rust_ptr ptr, uint32_t pkey) {
     auto alloc = getAllocSite(ptr);
     REPORT("INFO : Getting AllocSite : id(%d), ptr(%p)\n", alloc->id(),
            alloc->getPtr());
 
+    // Ensure that the allocation site exists and an Error Allocation Site was
+    // not returned.
     if (!alloc->isValid()) {
       REPORT("INFO : AllocSite is not valid, will not add it to Fault Set.\n");
       return;
@@ -218,9 +246,13 @@ public:
     }
 #endif
 
+    // Add faulted allocation to fault_set
     const std::lock_guard<std::mutex> fault_set_insertion_guard(fault_set_mx);
     fault_set.insert(alloc);
 
+    // For each Allocation Site in the associated set, add them to the fault_set
+    // as well. Thus if a reallocated pointer faults, all associated allocation
+    // sites are also marked as being unsafe.
     for (auto assoc : alloc->getAssociatedSet()) {
       assoc->addPkey(pkey);
       fault_set.insert(assoc);

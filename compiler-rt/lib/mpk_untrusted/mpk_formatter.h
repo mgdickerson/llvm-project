@@ -11,6 +11,7 @@ void flush_allocs();
 } // namespace __mpk_untrusted
 
 extern "C" {
+// Registers flush_allocs to be called at program exit.
 __attribute__((visibility("default"))) static void __attribute__((constructor))
 register_flush_allocs();
 }

@@ -16,6 +16,8 @@ namespace __mpk_untrusted {
 #define ATTEMPTS 128
 #define ENTROPY 16
 
+// Generates a unique filename to ensure we do not overlap or overwrite
+// previously found faults.
 llvm::Optional<std::string> makeUniqueFilename(std::string path,
                                                std::string base_name,
                                                std::string extension) {
@@ -39,6 +41,8 @@ llvm::Optional<std::string> makeUniqueFilename(std::string path,
   return llvm::None;
 }
 
+// Optionally returns a ofstream if it can successfully create a unique
+// filename.
 llvm::Optional<std::ofstream> makeUniqueStream(std::string path,
                                                std::string base_name,
                                                std::string extension) {
@@ -82,7 +86,11 @@ void writeJSON(std::ofstream &OS,
   OS << "]\n";
 }
 
+// Writes output of the faultSet to a uniquely generated output file to ensure
+// we do not overwrite previously discovered faulting values.
 bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
+  // Currently all results are stored by default in the folder TestResults.
+  // Ensure this folder exists, or create one if it does not.
   std::string TestDirectory = "TestResults";
   if (!is_directory(TestDirectory)) {
     if (mkdir(TestDirectory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
