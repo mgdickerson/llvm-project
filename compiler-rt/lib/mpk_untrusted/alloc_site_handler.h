@@ -94,6 +94,8 @@ public:
   // into which compartment attempted to access the information.
   void addPkey(uint32_t faultPkey) {
     const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
+    // There are only a total of 16 keys, so faultPkey should always be less than 16.
+    assert(faultPkey < 16);
     pkey = faultPkey;
   }
 

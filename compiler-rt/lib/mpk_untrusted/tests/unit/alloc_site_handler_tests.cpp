@@ -13,6 +13,10 @@ namespace __mpk_untrusted {
 
 const uint32_t PKEY_DEFAULT_VALUE = 1;
 
+TEST(AllocSite, invalidAllocSite) {
+  EXPECT_DEATH_IF_SUPPORTED(AllocSite(nullptr, 0, -1), "test");
+}
+
 // For this test to work properly, we have to ensure all other tests
 // remove all allocations that they have added to the map.
 TEST(getAllocSite, EmptyMap) {
