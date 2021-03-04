@@ -175,7 +175,8 @@ public:
           BasicBlock::iterator NextInst;
           if (auto call = dyn_cast<CallInst>(&I)) {
             NextInst = ++I.getIterator();
-            assert(NextInst != I.getParent()->end());
+            assert(NextInst != I.getParent()->end() &&
+                   "Error getting next instruction from call instruction.");
             LLVM_DEBUG(errs() << "CallInst(" << I << ") found next iterator: "
                               << *NextInst << "\n");
           } else if (auto invoke = dyn_cast<InvokeInst>(&I)) {
@@ -246,13 +247,22 @@ public:
   /// Functions with RustAllocator attribute.
   void removeInlineAttr(Module &M) {
     auto rust_alloc = M.getFunction("__rust_alloc");
+    assert(rust_alloc != nullptr && "Unable to find __rust_alloc.");
     auto rust_alloc_zeroed = M.getFunction("__rust_alloc_zeroed");
+    assert(rust_alloc_zeroed != nullptr &&
+           "Unable to find __rust_alloc_zeroed.");
     auto rust_realloc = M.getFunction("__rust_realloc");
+    assert(rust_realloc != nullptr && "Unable to find __rust_realloc.");
     auto rust_dealloc = M.getFunction("__rust_dealloc");
+    assert(rust_dealloc != nullptr && "Unable to find __rust_dealloc.");
 
     auto rust_untrusted_alloc = M.getFunction("__rust_untrusted_alloc");
+    assert(rust_untrusted_alloc != nullptr &&
+           "Unable to find __rust_untrusted_alloc function.");
     auto rust_untrusted_alloc_zeroed =
         M.getFunction("__rust_untrusted_alloc_zeroed");
+    assert(rust_untrusted_alloc_zeroed != nullptr &&
+           "Unable to find __rust_untrusted_alloc_zeroed function.");
     rust_untrusted_alloc->setLinkage(
         llvm::GlobalValue::LinkageTypes::ExternalLinkage);
     rust_untrusted_alloc_zeroed->setLinkage(

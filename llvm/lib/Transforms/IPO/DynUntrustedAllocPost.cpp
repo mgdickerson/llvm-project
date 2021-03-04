@@ -287,7 +287,11 @@ public:
 
           // If provided a valid path, modify given instruction
           if (!mpk_profile_path.empty()) {
-            assert(!fault_map.empty() && "No Faulting Allocation to patch!");
+            // Switched from assert to check, as it is entirely possible that
+            // there are no allocation sites that need to be modified.
+            if (fault_map.empty())
+              continue;
+
             // Get Call Instr that hook references
             auto allocFunc = CS.getArgument(0);
             if (auto *allocInst = dyn_cast<CallBase>(allocFunc)) {

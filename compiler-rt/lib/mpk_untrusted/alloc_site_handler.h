@@ -53,6 +53,12 @@ private:
   int64_t size;
   int64_t uniqueID;
   uint32_t pkey;
+
+  // TODO : As mentioned by Paul, while this does get us the correct original
+  // allocation site, it does potentially break the chain of reporting for
+  // fauling allocation sites if an earlier site in the chain faults, but later
+  // ones do not. Might want to change how this is tracked to maintain that
+  // reporting information.
   alloc_set_type associatedSet;
   // Mutex for getting and setting PKey value
   std::mutex pkey_mx;
@@ -292,6 +298,11 @@ public:
     return ret_val;
   }
 
+  // TODO : Returned reference defeats the purpose of the lock_guard. Return
+  // <unique_lock, &fault_set> tuple to ensure lock is valid. Or find a way of
+  // using or accessing this data without having to return it, (maybe print from
+  // within here?).
+  // -> Maybe a move(obj)?
   std::set<std::shared_ptr<AllocSite>> &faultingAllocs() {
     const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
     return fault_set;
