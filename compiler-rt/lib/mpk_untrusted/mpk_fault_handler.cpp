@@ -28,8 +28,14 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
            "default handler.\n");
     // SignalHandler was invoked from an error other than MPK violation.
     // Perform default action instead and return.
-    signal(sig, SIG_DFL);
-    raise(sig);
+    if (prevAction->sa_flags & SA_SIGINFO) {
+      prevAction->sa_sigaction(sig, si, arg);
+    } else if (prevAction->sa_handler == SIG_DFL ||
+               prevAction->sa_handler == SIG_IGN) {
+      sigaction(sig, prevAction, nullptr);
+    } else {
+      prevAction->sa_handler(sig);
+    }
     return;
   }
   REPORT("INFO : Handling SEGV_PKUERR.\n");

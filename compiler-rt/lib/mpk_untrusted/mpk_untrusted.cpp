@@ -3,6 +3,8 @@
 #include "mpk_fault_handler.h"
 #include "sanitizer_common/sanitizer_common.h"
 
+struct sigaction *prevAction = nullptr;
+
 #ifdef MPK_STATS
 std::atomic<uint64_t> *AllocSiteUseCounter(nullptr);
 std::atomic<uint64_t> allocHookCalls(0);
@@ -37,6 +39,7 @@ void mpk_untrusted_constructor() {
   sa.sa_flags = SA_SIGINFO;
   sa.sa_sigaction = __mpk_untrusted::segMPKHandle;
   sigaction(SIGSEGV, &sa, &sa_old);
+  prevAction = &sa_old;
 
 #if SINGLE_STEP
   // If we are single stepping, we add an additional signal handler.
