@@ -70,6 +70,17 @@ public:
   virtual ~DynUntrustedAllocPre() = default;
 
   bool runOnModule(Module &M) override {
+    /*if (!M.getFunction("__rust_alloc")) {
+      return true;
+    } else {
+      if (!M.getFunction("__rust_untrusted_alloc")) {
+        for (Function &F : M) {
+          // Iterate through all functions to find 
+        }
+        assert(false && "Compilation unit contains __rust_alloc* but not __rust_untrusted_alloc*, fail compilation here.");
+        return false;
+      }
+    }*/
     // Pre-inline pass:
     // Adds function hooks with dummy UniqueIDs immediately after calls
     // to __rust_alloc* functions. Additionally, we must remove the
@@ -251,13 +262,17 @@ public:
     auto rust_dealloc = M.getFunction("__rust_dealloc");
 
     auto rust_untrusted_alloc = M.getFunction("__rust_untrusted_alloc");
+    assert(rust_untrusted_alloc != nullptr && "Missing rust_untrusted_alloc.");
     auto rust_untrusted_alloc_zeroed =
         M.getFunction("__rust_untrusted_alloc_zeroed");
+    //assert(rust_untrusted_alloc_zeroed != nullptr && "Missing rust_untrusted_alloc_zeroed.");
     rust_untrusted_alloc->setLinkage(
         llvm::GlobalValue::LinkageTypes::ExternalLinkage);
-    rust_untrusted_alloc_zeroed->setLinkage(
+    //if (rust_untrusted_alloc_zeroed) {
+      rust_untrusted_alloc_zeroed->setLinkage(
         llvm::GlobalValue::LinkageTypes::ExternalLinkage);
-
+    //}
+   
     for (Function &F : M) {
       if (F.hasFnAttribute(Attribute::RustAllocator)) {
         // Dont inline any functions that may be altered or hooked in the
@@ -272,10 +287,14 @@ public:
 
     rust_alloc->addFnAttr(Attribute::NoInline);
     rust_alloc->addFnAttr(Attribute::RustAllocator);
-    rust_alloc_zeroed->addFnAttr(Attribute::NoInline);
-    rust_alloc_zeroed->addFnAttr(Attribute::RustAllocator);
-    rust_realloc->addFnAttr(Attribute::NoInline);
-    rust_realloc->addFnAttr(Attribute::RustAllocator);
+    //if (rust_alloc_zeroed) {
+      rust_alloc_zeroed->addFnAttr(Attribute::NoInline);
+      rust_alloc_zeroed->addFnAttr(Attribute::RustAllocator);
+    //}
+    //if (rust_realloc) {
+      rust_realloc->addFnAttr(Attribute::NoInline);
+      rust_realloc->addFnAttr(Attribute::RustAllocator);
+    //}
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {

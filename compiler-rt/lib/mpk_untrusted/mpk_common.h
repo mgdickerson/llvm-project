@@ -7,8 +7,8 @@
 #include <cstdio>
 #include <cstring>
 
-#define PAGE_MPK 0
-#define SINGLE_STEP 1
+#define PAGE_MPK 1
+#define SINGLE_STEP 0
 
 // Flag for controlling optional Stats tracking
 #define MPK_STATS
@@ -23,7 +23,7 @@ extern std::atomic<uint64_t> deallocHookCalls;
 extern std::atomic<uint64_t> AllocSiteCount;
 #endif
 
-// #define MPK_ENABLE_LOGGING
+#define MPK_ENABLE_LOGGING
 #ifdef MPK_ENABLE_LOGGING
 #define REPORT(...) __sanitizer::Report(__VA_ARGS__)
 #else

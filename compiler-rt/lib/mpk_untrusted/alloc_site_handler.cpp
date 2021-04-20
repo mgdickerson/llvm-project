@@ -36,7 +36,7 @@ void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   auto site = std::make_shared<__mpk_untrusted::AllocSite>(ptr, size, uniqueID);
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
   handler->insertAllocSite(ptr, site);
-  REPORT("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
+  //REPORT("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
 
 #ifdef MPK_STATS
   if (AllocSiteCount != 0)
@@ -68,8 +68,8 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   auto site = std::make_shared<__mpk_untrusted::AllocSite>(
       newPtr, newSize, uniqueID, 0, assocSet);
   handler->insertAllocSite(newPtr, site);
-  REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
-         newPtr, uniqueID);
+  //REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
+  //       newPtr, uniqueID);
 
 #ifdef MPK_STATS
   if (AllocSiteCount != 0)
@@ -80,7 +80,7 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
 void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
   handler->removeAllocSite(ptr);
-  REPORT("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
+  //REPORT("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
 
 #ifdef MPK_STATS
   if (AllocSiteCount != 0)
