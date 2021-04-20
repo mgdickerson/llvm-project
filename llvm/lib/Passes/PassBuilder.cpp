@@ -214,6 +214,9 @@ static cl::opt<bool>
 
 extern cl::opt<bool> EnableHotColdSplit;
 
+extern cl::opt<bool> ProfileMPK;
+extern cl::opt<std::string> MPKProfilePath;
+
 static bool isOptimizingForSize(PassBuilder::OptimizationLevel Level) {
   switch (Level) {
   case PassBuilder::O0:
@@ -1034,6 +1037,9 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level, bool DebugLogging,
   // Do basic inference of function attributes from known properties of system
   // libraries and other oracles.
   MPM.addPass(InferFunctionAttrsPass());
+
+  if (ProfileMPK || !MPKProfilePath.empty())
+    MPM.addPass(DynUntrustedAllocPrePass());
 
   if (Level > 1) {
     FunctionPassManager EarlyFPM(DebugLogging);

@@ -160,12 +160,12 @@ static cl::opt<bool>
     EnableCHR("enable-chr", cl::init(true), cl::Hidden,
               cl::desc("Enable control height reduction optimization (CHR)"));
 
-static cl::opt<bool>
+cl::opt<bool>
     ProfileMPK("profile-mpk", cl::init(false), cl::Hidden,
                cl::desc("Enables the static instrumentation for "
                         "the MPK Untrusted Analysis pass."));
 
-static cl::opt<std::string>
+cl::opt<std::string>
     MPKProfilePath("instr-mpk", cl::init(""), cl::Hidden,
                    cl::desc("Input for profiling information and "
                             "final instrumentation."),
