@@ -121,6 +121,11 @@ public:
   virtual ~DynUntrustedAllocPost() = default;
 
   bool runOnModule(Module &M) override {
+    /*if (!M.getFunction("allocHook") && !M.getFunction("reallocHook") && !M.getFunction("deallocHook")) {
+      // It is likely at this stage that if none of the above are present, DynUntrustedAllocPre did not run.
+      // Thus, we should skip this pass as well.
+      return true;
+    }*/
     // Additional flags for easier testing with opt.
     if (mpk_profile_path.empty() && !MPKTestProfilePath.empty())
       mpk_profile_path = MPKTestProfilePath;
@@ -338,11 +343,13 @@ public:
     }
 
     auto allocHook = M.getFunction("allocHook");
+    //assert(allocHook != nullptr && "Cannot find allocHook for removal!");
     auto reallocHook = M.getFunction("reallocHook");
     auto deallocHook = M.getFunction("deallocHook");
 
     allocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     allocHook->eraseFromParent();
+
 
     reallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     reallocHook->eraseFromParent();
