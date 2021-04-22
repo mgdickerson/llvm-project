@@ -2,8 +2,10 @@
 
 namespace __mpk_untrusted {
 
+AllocSiteHandler AllocSiteHandle;
+
 std::shared_ptr<AllocSite> AllocSite::AllocErr = nullptr;
-std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
+// std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
 
 std::once_flag ErrorAllocFlag;
 std::once_flag StatsInitFlag;
@@ -20,13 +22,14 @@ std::shared_ptr<AllocSite> AllocSite::error() {
 }
 
 void AllocSiteHandler::init() {
-  handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
+  // handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
   mpk_untrusted_constructor();
 }
 
-std::shared_ptr<AllocSiteHandler> AllocSiteHandler::getOrInit() {
+AllocSiteHandler* AllocSiteHandler::getOrInit() {
   std::call_once(AllocHandlerInitFlag, init);
-  return handle;
+  // return handle;
+  return &AllocSiteHandle;
 }
 
 } // namespace __mpk_untrusted
@@ -54,6 +57,13 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
   auto assocSite = handler->getAllocSite(oldPtr);
 
+  if (!assocSite->isValid()) {
+    // Returned ErrorAlloc, which should not be part of the realloc chain.
+    auto site = std::make_shared<__mpk_untrusted::AllocSite>(newPtr, newSize, uniqueID);
+    handler->insertAllocSite(newPtr, site);
+    return;
+  }
+
   // Get the previously associated set from the site being re-allocated and
   // add the previous site to the associated set.
   auto assocSet = assocSite->getAssociatedSet();
@@ -79,6 +89,12 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
 
 void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
+  if (!handler) {
+    // deallocHook has been called after global AllocSiteHandler has been destroyed.
+    REPORT("ERROR : deallocHook has been called after AllocSiteHandler has been destroyed.\n");
+    return;
+  }
+
   handler->removeAllocSite(ptr);
   //REPORT("INFO : DeallocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
 
