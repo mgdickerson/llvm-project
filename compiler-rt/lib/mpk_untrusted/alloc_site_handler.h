@@ -38,10 +38,6 @@ namespace __mpk_untrusted {
  * pointer, then add them to the associated set of the newly generated AllocSite
  * to ensure that if a reallocated site is found to be unsafe, the original
  * allocation can also be marked unsafe.
- *
- * @note A note on thread safety: The only parameter that is changed at any
- * point after object creation is the PKey that the object faults on, thus this
- * is protected behind a mutex for setting and accessing.
  */
 class AllocSite {
   typedef std::set<std::shared_ptr<AllocSite>> alloc_set_type;
@@ -54,8 +50,6 @@ private:
   int64_t uniqueID;
   uint32_t pkey;
   alloc_set_type associatedSet;
-  // Mutex for getting and setting PKey value
-  std::mutex pkey_mx;
   AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
 
 public:
@@ -92,19 +86,23 @@ public:
   // When a given allocation site faults, we add the pkey that the request
   // faulted on and add it to the allocation site metadata to provide insight
   // into which compartment attempted to access the information.
+  // 
+  // WARNING : This is inherently unsafe in a multithreaded environment, thus it
+  // should only ever be called in the `addFaultAlloc` function where it is protected
+  // behind AllocSiteHandler's mutex.
   void addPkey(uint32_t faultPkey) {
-    const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
     pkey = faultPkey;
   }
 
   uint32_t getPkey() {
-    const std::lock_guard<std::mutex> pkey_guard(pkey_mx);
     return pkey;
   }
 
   // For use with re-allocation tracking. The associated set should contain all
   // previous allocation sites for a given reallocated pointer.
   alloc_set_type getAssociatedSet() { return associatedSet; }
+
+  // void clearAssociatedSet() { associatedSet.clear(); }
 
   bool operator<(const AllocSite &ac) const { return uniqueID < ac.id(); }
 };
@@ -147,13 +145,13 @@ public:
 class AllocSiteHandler {
 private:
   // Singleton AllocSiteHandler pointer
-  static std::shared_ptr<AllocSiteHandler> handle;
+  // static std::shared_ptr<AllocSiteHandler> handle;
   // Mapping from memory location pointer to AllocationSite
   std::map<rust_ptr, std::shared_ptr<AllocSite>> allocation_map;
   // allocation_map mutex
   std::mutex alloc_map_mx;
   // Set of faulting AllocationSites
-  std::set<std::shared_ptr<AllocSite>> fault_set;
+  std::set<AllocSite> fault_set;
   // Fault set mutex
   std::mutex fault_set_mx;
   // Mapping of thread-id to saved pkey information
@@ -163,10 +161,16 @@ private:
   AllocSiteHandler() = default;
 
 public:
-  ~AllocSiteHandler() {}
+  ~AllocSiteHandler() {
+    // Get a lock guard for all mutexes to ensure that during deletion no other
+    // object has access.
+    const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
+    const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
+    const std::lock_guard<std::mutex> pkey_tid_map_guard(pkey_tid_map_mx);
+  }
 
   static void init();
-  static std::shared_ptr<AllocSiteHandler> getOrInit();
+  static AllocSiteHandler* getOrInit();
 
   bool empty() { return allocation_map.empty(); }
 
@@ -248,14 +252,14 @@ public:
 
     // Add faulted allocation to fault_set
     const std::lock_guard<std::mutex> fault_set_insertion_guard(fault_set_mx);
-    fault_set.insert(alloc);
+    fault_set.insert(*alloc);
 
     // For each Allocation Site in the associated set, add them to the fault_set
     // as well. Thus if a reallocated pointer faults, all associated allocation
     // sites are also marked as being unsafe.
     for (auto assoc : alloc->getAssociatedSet()) {
       assoc->addPkey(pkey);
-      fault_set.insert(assoc);
+      fault_set.insert(*assoc);
 #ifdef MPK_STATS
       if (AllocSiteCount != 0) {
         assert((uint64_t)assoc->id() < AllocSiteCount && assoc->id() >= 0);
@@ -292,7 +296,7 @@ public:
     return ret_val;
   }
 
-  std::set<std::shared_ptr<AllocSite>> &faultingAllocs() {
+  std::set<std::shared_ptr<AllocSite>> faultingAllocs() {
     const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
     return fault_set;
   }
