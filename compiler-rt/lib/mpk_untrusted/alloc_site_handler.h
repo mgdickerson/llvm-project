@@ -11,6 +11,7 @@
 #include <mutex>
 #include <set>
 #include <unordered_map>
+#include <utility>
 
 typedef int8_t *rust_ptr;
 
@@ -40,11 +41,9 @@ namespace __mpk_untrusted {
  * allocation can also be marked unsafe.
  */
 class AllocSite {
-  typedef std::set<std::shared_ptr<AllocSite>> alloc_set_type;
+  typedef std::set<AllocSite> alloc_set_type;
 
 private:
-  static std::shared_ptr<AllocSite> AllocErr;
-
   rust_ptr ptr;
   int64_t size;
   int64_t uniqueID;
@@ -65,7 +64,7 @@ public:
   static void initError();
 
   /// Returns a shared pointer to the Error AllocSite.
-  static std::shared_ptr<AllocSite> error();
+  static AllocSite error();
 
   // Note : containsPtr contains potentially wrapping arithmetic. If a ptr
   // and the allocations size exceed max pointer size, then any pointer
@@ -86,21 +85,17 @@ public:
   // When a given allocation site faults, we add the pkey that the request
   // faulted on and add it to the allocation site metadata to provide insight
   // into which compartment attempted to access the information.
-  // 
+  //
   // WARNING : This is inherently unsafe in a multithreaded environment, thus it
-  // should only ever be called in the `addFaultAlloc` function where it is protected
-  // behind AllocSiteHandler's mutex.
-  void addPkey(uint32_t faultPkey) {
-    pkey = faultPkey;
-  }
+  // should only ever be called in the `addFaultAlloc` function where it is
+  // protected behind AllocSiteHandler's mutex.
+  void addPkey(uint32_t faultPkey) { pkey = faultPkey; }
 
-  uint32_t getPkey() {
-    return pkey;
-  }
+  uint32_t getPkey() { return pkey; }
 
   // For use with re-allocation tracking. The associated set should contain all
   // previous allocation sites for a given reallocated pointer.
-  alloc_set_type getAssociatedSet() { return associatedSet; }
+  alloc_set_type& getAssociatedSet() { return associatedSet; }
 
   // void clearAssociatedSet() { associatedSet.clear(); }
 
@@ -147,7 +142,7 @@ private:
   // Singleton AllocSiteHandler pointer
   // static std::shared_ptr<AllocSiteHandler> handle;
   // Mapping from memory location pointer to AllocationSite
-  std::map<rust_ptr, std::shared_ptr<AllocSite>> allocation_map;
+  std::map<rust_ptr, AllocSite> allocation_map;
   // allocation_map mutex
   std::mutex alloc_map_mx;
   // Set of faulting AllocationSites
@@ -158,29 +153,30 @@ private:
   std::unordered_map<thread_id, PendingPKeyInfo> pkey_by_tid_map;
   // pkey_by_tid_map mutex
   std::mutex pkey_tid_map_mx;
-  AllocSiteHandler() = default;
+  // AllocSiteHandler() = default;
 
 public:
-  ~AllocSiteHandler() {
-    // Get a lock guard for all mutexes to ensure that during deletion no other
-    // object has access.
-    const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
-    const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
-    const std::lock_guard<std::mutex> pkey_tid_map_guard(pkey_tid_map_mx);
-  }
+  AllocSiteHandler() = default;
+  ~AllocSiteHandler()= default;
+  //~AllocSiteHandler() {
+    //// Get a lock guard for all mutexes to ensure that during deletion no other
+    //// object has access.
+    //const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
+    //const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
+    //const std::lock_guard<std::mutex> pkey_tid_map_guard(pkey_tid_map_mx);
+  //}
 
   static void init();
-  static AllocSiteHandler* getOrInit();
+  static AllocSiteHandler &getOrInit();
 
   bool empty() { return allocation_map.empty(); }
 
-  void insertAllocSite(rust_ptr ptr, std::shared_ptr<AllocSite> site) {
+  void insertAllocSite(rust_ptr ptr, AllocSite site) {
     // First, obtain the mutex lock to ensure safe addition of item to map.
     const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
 
     // Insert AllocationSite for given ptr.
-    allocation_map.insert(
-        std::pair<rust_ptr, std::shared_ptr<AllocSite>>(ptr, site));
+    allocation_map.emplace(ptr, site);
   }
 
   void removeAllocSite(rust_ptr ptr) {
@@ -191,7 +187,7 @@ public:
     allocation_map.erase(ptr);
   }
 
-  std::shared_ptr<AllocSite> getAllocSite(rust_ptr ptr) {
+  AllocSite getAllocSite(rust_ptr ptr) {
     // Obtain mutex lock.
     const std::lock_guard<std::mutex> alloc_map_guard(alloc_map_mx);
 
@@ -217,7 +213,7 @@ public:
     if (map_iter != allocation_map.begin())
       --map_iter;
 
-    if (map_iter->second->containsPtr(ptr))
+    if (map_iter->second.containsPtr(ptr))
       return map_iter->second;
 
     // If pointer was not an exact match, was not the beginning node,
@@ -230,40 +226,39 @@ public:
   // Add a faulting allocation site to the fault_set with the given pkey.
   void addFaultAlloc(rust_ptr ptr, uint32_t pkey) {
     auto alloc = getAllocSite(ptr);
-    REPORT("INFO : Getting AllocSite : id(%d), ptr(%p)\n", alloc->id(),
-           alloc->getPtr());
+    REPORT("INFO : Getting AllocSite : id(%d), ptr(%p)\n", alloc.id(),
+           alloc.getPtr());
 
     // Ensure that the allocation site exists and an Error Allocation Site was
     // not returned.
-    if (!alloc->isValid()) {
+    if (!alloc.isValid()) {
       REPORT("INFO : AllocSite is not valid, will not add it to Fault Set.\n");
       return;
     }
 
-    alloc->addPkey(pkey);
-
 #ifdef MPK_STATS
     if (AllocSiteCount != 0) {
       // Increment the count of the allocation faulting
-      assert((uint64_t)alloc->id() < AllocSiteCount && alloc->id() >= 0);
-      AllocSiteUseCounter[alloc->id()]++;
+      assert((uint64_t)alloc.id() < AllocSiteCount && alloc->id() >= 0);
+      AllocSiteUseCounter[alloc.id()]++;
     }
 #endif
 
     // Add faulted allocation to fault_set
     const std::lock_guard<std::mutex> fault_set_insertion_guard(fault_set_mx);
-    fault_set.insert(*alloc);
+    alloc.addPkey(pkey);
+    fault_set.insert(alloc);
 
     // For each Allocation Site in the associated set, add them to the fault_set
     // as well. Thus if a reallocated pointer faults, all associated allocation
     // sites are also marked as being unsafe.
-    for (auto assoc : alloc->getAssociatedSet()) {
-      assoc->addPkey(pkey);
-      fault_set.insert(*assoc);
+    for (auto assoc : alloc.getAssociatedSet()) {
+      assoc.addPkey(pkey);
+      fault_set.insert(assoc);
 #ifdef MPK_STATS
       if (AllocSiteCount != 0) {
-        assert((uint64_t)assoc->id() < AllocSiteCount && assoc->id() >= 0);
-        AllocSiteUseCounter[assoc->id()]++;
+        assert((uint64_t)assoc.id() < AllocSiteCount && assoc.id() >= 0);
+        AllocSiteUseCounter[assoc.id()]++;
       }
 #endif
     }
@@ -275,8 +270,7 @@ public:
     // Obtain map key
     const std::lock_guard<std::mutex> pkey_map_guard(pkey_tid_map_mx);
 
-    pkey_by_tid_map.insert(
-        std::pair<pid_t, PendingPKeyInfo>(threadID, pkeyinfo));
+    pkey_by_tid_map.emplace(threadID, pkeyinfo);
   }
 
   /// For single instruction stepping, this will get the associated PKey
@@ -296,7 +290,7 @@ public:
     return ret_val;
   }
 
-  std::set<std::shared_ptr<AllocSite>> faultingAllocs() {
+  std::set<AllocSite> &faultingAllocs() {
     const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
     return fault_set;
   }
