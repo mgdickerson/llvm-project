@@ -133,18 +133,22 @@ bool writeUniqueFile(std::set<AllocSite> &faultSet) {
 // Flush Allocs is to be called on program exit to flush all faulting
 // allocations to disk/file.
 void flush_allocs() {
-  auto& handler = AllocSiteHandler::getOrInit();
-  auto fault_set = handler.faultingAllocs();
+  auto handler = AllocSiteHandler::getOrInit();
+  auto fault_set = handler->faultingAllocs();
   if (fault_set.empty()) {
     REPORT("INFO : No faulting instructions to export, returning.\n");
     return;
   }
+
+  REPORT("INFO : Beginning faulting alloc flush.\n");
 
   // Simple method that requires either handling multiple files or a script for
   // combining them later.
   if (!writeUniqueFile(fault_set))
     REPORT("ERROR : Unable to successfully write unique files for "
            "given program run.\n");
+
+  REPORT("INFO : Finished flushing faulted allocs\n");
 }
 
 } // namespace __mpk_untrusted

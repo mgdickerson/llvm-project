@@ -40,6 +40,7 @@
 #include <set>
 #include <string>
 
+//#define dynuntrusted 
 #define DEBUG_TYPE "dyn-untrusted"
 #define MPK_STATS
 
@@ -70,17 +71,6 @@ public:
   virtual ~DynUntrustedAllocPre() = default;
 
   bool runOnModule(Module &M) override {
-    /*if (!M.getFunction("__rust_alloc")) {
-      return true;
-    } else {
-      if (!M.getFunction("__rust_untrusted_alloc")) {
-        for (Function &F : M) {
-          // Iterate through all functions to find 
-        }
-        assert(false && "Compilation unit contains __rust_alloc* but not __rust_untrusted_alloc*, fail compilation here.");
-        return false;
-      }
-    }*/
     // Pre-inline pass:
     // Adds function hooks with dummy UniqueIDs immediately after calls
     // to __rust_alloc* functions. Additionally, we must remove the
@@ -130,6 +120,7 @@ public:
     // Print stats.
     printStats(M);
 #endif
+    LLVM_DEBUG(errs() << "Finished DynUntrustedPre.\n");
     return true;
   }
 
@@ -171,10 +162,10 @@ public:
       if (F.isDeclaration())
         continue;
 
-      ReversePostOrderTraversal<Function *> RPOT(&F);
+      //ReversePostOrderTraversal<Function *> RPOT(&F);
 
-      for (BasicBlock *BB : RPOT) {
-        for (Instruction &I : *BB) {
+      for (BasicBlock &BB : F) {
+        for (Instruction &I : BB) {
           CallSite CS(&I);
           if (!CS)
             continue;

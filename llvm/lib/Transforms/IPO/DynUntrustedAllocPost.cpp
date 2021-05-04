@@ -45,6 +45,7 @@
 #include <utility>
 #include <vector>
 
+//#define dynuntrusted 
 #define DEBUG_TYPE "dyn-untrusted"
 #define MPK_STATS
 
@@ -78,7 +79,11 @@ const static std::map<std::string, int> patchArgIndexMap = {
 const static std::map<std::string, std::string> AllocReplacementMap = {
     {"__rust_alloc", "__rust_untrusted_alloc"},
     {"__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed"},
-    {"__rust_realloc", "__rust_untrusted_realloc"},
+};
+
+/// Map for counting total number of hooks split between type.
+static std::map<std::string, int> hookCountMap = {
+    {"allocHook", 0}, {"reallocHook", 0}, {"deallocHook", 0}
 };
 
 std::vector<Instruction *> hookList;
@@ -121,11 +126,6 @@ public:
   virtual ~DynUntrustedAllocPost() = default;
 
   bool runOnModule(Module &M) override {
-    /*if (!M.getFunction("allocHook") && !M.getFunction("reallocHook") && !M.getFunction("deallocHook")) {
-      // It is likely at this stage that if none of the above are present, DynUntrustedAllocPre did not run.
-      // Thus, we should skip this pass as well.
-      return true;
-    }*/
     // Additional flags for easier testing with opt.
     if (mpk_profile_path.empty() && !MPKTestProfilePath.empty())
       mpk_profile_path = MPKTestProfilePath;
@@ -151,7 +151,7 @@ public:
         "AllocSiteTotal", IntegerType::getInt64Ty(M.getContext())));
     AllocSiteTotal->setInitializer(IDG.getConstIntCount(M));
 #endif
-
+    LLVM_DEBUG(errs() << "DynUntrustedPost finish.\n");
     return true;
   }
 
@@ -258,10 +258,10 @@ public:
     auto fault_map = getFaultingAllocMap();
 
     for (Function *F : WorkList) {
-      ReversePostOrderTraversal<Function *> RPOT(F);
+      //ReversePostOrderTraversal<Function *> RPOT(F);
 
-      for (BasicBlock *BB : RPOT) {
-        for (Instruction &I : *BB) {
+      for (BasicBlock &BB : *F) {
+        for (Instruction &I : BB) {
           CallSite CS(&I);
           if (!CS) {
             continue;
@@ -275,6 +275,11 @@ public:
           auto index_iter = patchArgIndexMap.find(hook->getName().str());
           if (index_iter == patchArgIndexMap.end())
             continue;
+#ifdef MPK_STATS
+          auto hookCounter = hookCountMap.find(hook->getName().str());
+          if (hookCounter != hookCountMap.end())
+            hookCounter->second++;
+#endif
 
           auto index = index_iter->second;
 
@@ -306,6 +311,8 @@ public:
               LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
 
               patchInstruction(M, allocInst);
+            } else {
+                LLVM_DEBUG(errs() << "Alloc Func expected, found: " << *allocFunc << "\n");
             }
           }
         }
@@ -347,13 +354,57 @@ public:
     auto reallocHook = M.getFunction("reallocHook");
     auto deallocHook = M.getFunction("deallocHook");
 
+    // Working under the assumption that all missed cases of Hook calls is 
+    // due to the blocks containing them no longer being reachable, we remove
+    // those instructions from their respective blocks.
+    for (auto user : allocHook->users()) {
+      if (auto *inst = dyn_cast<Instruction>(user)) {
+        // TODO : Check to ensure instruction or block is unreachable
+        salvageDebugInfo(*inst);
+        inst->eraseFromParent();
+        total_hooks++;
+        hookCountMap.find("allocHook")->second++;
+        /* // Keeping this around in case necessary later for reference.
+        auto *func = inst->getFunction();
+        if(!func) {
+          errs() << "Following instruction did not have a parent function: " << *inst << "\n";
+          continue;
+        }
+        func->dump();
+        */
+      } else {
+        errs() << "User not an instruction: " << *user << "\n";
+        assert(false && "AllocHook user not an instruction!");
+      }
+    }
     allocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     allocHook->eraseFromParent();
 
-
+    for (auto user : reallocHook->users()) {
+      if (auto *inst = dyn_cast<Instruction>(user)) {
+       salvageDebugInfo(*inst);
+       inst->eraseFromParent();
+       total_hooks++;
+       hookCountMap.find("reallocHook")->second++;
+      } else {
+        errs() << "User not an instruction: " << *user << "\n";
+        assert(false && "ReAllocHook user not an instruction!");
+      }
+    }
     reallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     reallocHook->eraseFromParent();
 
+    for (auto user : deallocHook->users()) {
+      if (auto *inst = dyn_cast<Instruction>(user)) {
+        salvageDebugInfo(*inst);
+        inst->eraseFromParent();
+        total_hooks++;
+        hookCountMap.find("deallocHook")->second++;
+      } else {
+        errs() << "User not an instruction: " << *user << "\n";
+        assert(false && "DeAllocHook user not an instruction!");
+      }
+    }
     deallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     deallocHook->eraseFromParent();
   }
@@ -387,7 +438,10 @@ public:
     llvm::raw_fd_ostream OS(PreStats->FD, /* shouldClose */ false);
     OS << "Number of alloc instructions modified to unsafe: "
        << modified_inst_count << "\n"
-       << "Total number hooks given a UniqueID: " << total_hooks << "\n";
+       << "Total number hooks given a UniqueID: " << total_hooks << "\n"
+       << "Total allocHooks: " << hookCountMap.find("allocHook")->second << "\n"
+       << "Total reallocHooks: " << hookCountMap.find("reallocHook")->second << "\n"
+       << "Total deallocHooks: " << hookCountMap.find("deallocHook")->second << "\n";
     OS.flush();
 
     if (auto E = PreStats->keep()) {

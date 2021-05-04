@@ -16,6 +16,7 @@
 typedef int8_t *rust_ptr;
 
 namespace __mpk_untrusted {
+extern bool destructorRan;
 
 /**
  * @brief A class for tracking allocation metadata for a given allocation site
@@ -157,7 +158,9 @@ private:
 
 public:
   AllocSiteHandler() = default;
-  ~AllocSiteHandler()= default;
+  ~AllocSiteHandler() {
+    destructorRan = true;
+  }
   //~AllocSiteHandler() {
     //// Get a lock guard for all mutexes to ensure that during deletion no other
     //// object has access.
@@ -167,7 +170,7 @@ public:
   //}
 
   static void init();
-  static AllocSiteHandler &getOrInit();
+  static AllocSiteHandler* getOrInit();
 
   bool empty() { return allocation_map.empty(); }
 

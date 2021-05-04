@@ -53,10 +53,10 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   uint32_t pkey = si->si_pkey;
 
   // Get Alloc Site information from the handler.
-  auto& handler = AllocSiteHandler::getOrInit();
-  handler.addFaultAlloc((rust_ptr)ptr, pkey);
+  auto handler = AllocSiteHandler::getOrInit();
+  handler->addFaultAlloc((rust_ptr)ptr, pkey);
   REPORT("INFO : Got Allocation Site (%d) for address: %p with pkey: %d.\n",
-         handler.getAllocSite((rust_ptr)ptr).id(), ptr, pkey);
+         handler->getAllocSite((rust_ptr)ptr).id(), ptr, pkey);
   disableMPK(si, arg);
 }
 
@@ -64,7 +64,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
 void disablePageMPK(siginfo_t *si, void *arg) {
   void *page_addr = (void *)((uintptr_t)si->si_addr & ~(PAGE_SIZE - 1));
 
-  REPORT("Disabling MPK protection for page(%p).\n", page_addr);
+  REPORT("INFO : Disabling MPK protection for page(%p).\n", page_addr);
 
   pkey_mprotect(page_addr, PAGE_SIZE, PROT_READ | PROT_WRITE, 0);
 }
@@ -73,9 +73,9 @@ void disablePageMPK(siginfo_t *si, void *arg) {
 void disableThreadMPK(void *arg, uint32_t pkey) {
   uint32_t *pkru_ptr = __mpk_untrusted::pkru_ptr(arg);
 
-  auto& handler = AllocSiteHandler::getOrInit();
+  auto handler = AllocSiteHandler::getOrInit();
   auto pkey_info = PendingPKeyInfo(pkey, pkey_get(pkru_ptr, pkey));
-  handler.storePendingPKeyInfo(gettid(), pkey_info);
+  handler->storePendingPKeyInfo(gettid(), pkey_info);
   pkey_set(pkru_ptr, pkey, PKEY_ENABLE_ACCESS);
 
   REPORT("INFO : Pkey(%d) has been set to ENABLE_ACCESS to enable "
@@ -110,9 +110,9 @@ void disableMPK(siginfo_t *si, void *arg) {
 // In the single step approach, we trap after stepping a single instruction and
 // then re-enable the pkey in the current thread.
 void stepMPKHandle(int sig, siginfo_t *si, void *arg) {
-  REPORT("Reached signal handler after single instruction step.\n");
-  auto& handler = AllocSiteHandler::getOrInit();
-  auto pid_key_info = handler.getAndRemove(getpid());
+  REPORT("INFO : Reached signal handler after single instruction step.\n");
+  auto handler = AllocSiteHandler::getOrInit();
+  auto pid_key_info = handler->getAndRemove(getpid());
   if (pid_key_info)
     enableThreadMPK(arg, pid_key_info.getValue());
 

@@ -17,6 +17,7 @@ std::atomic<uint64_t> AllocSiteCount(0);
 
 extern "C" {
 void mpk_SEGV_fault_handler(void *oldact) {
+  REPORT("INFO : Replacing SEGV fault handler with ours.\n");
   if (!SEGVAction) {
     static struct sigaction sa;
     memset(&sa, 0, sizeof(struct sigaction));
@@ -26,10 +27,11 @@ void mpk_SEGV_fault_handler(void *oldact) {
     SEGVAction = &sa;
   }
 
-  struct sigaction *actptr = (struct sigaction *)oldact;
-  if (actptr != nullptr) {
-    if (prevAction != nullptr)
-      actptr = prevAction;
+  if (oldact != nullptr && prevAction != nullptr) {
+    if (prevAction->sa_sigaction == __mpk_untrusted::segMPKHandle) {
+      REPORT("ERROR : Attempting to copy segMPKHandle into oldact.\n");
+    }
+    memcpy(oldact, prevAction, sizeof(struct sigaction));
   }
 
   sigaction(SIGSEGV, SEGVAction, prevAction);

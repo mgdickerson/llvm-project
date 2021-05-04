@@ -23,7 +23,7 @@ extern std::atomic<uint64_t> deallocHookCalls;
 extern std::atomic<uint64_t> AllocSiteCount;
 #endif
 
-#define MPK_ENABLE_LOGGING
+//#define MPK_ENABLE_LOGGING
 #ifdef MPK_ENABLE_LOGGING
 #define REPORT(...) __sanitizer::Report(__VA_ARGS__)
 #else
