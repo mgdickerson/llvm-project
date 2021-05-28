@@ -14,6 +14,9 @@
 #include <utility>
 
 typedef int8_t *rust_ptr;
+extern "C" {
+  extern bool is_safe_address(void* addr);
+}
 
 namespace __mpk_untrusted {
 extern bool destructorRan;
@@ -49,14 +52,21 @@ private:
   int64_t size;
   int64_t uniqueID;
   uint32_t pkey;
+  std::string bbName;
+  std::string funcName;
+  uint32_t isRealloc;
   alloc_set_type associatedSet;
-  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), pkey(0) {}
+  AllocSite() : ptr(nullptr), size(-1), uniqueID(-1), 
+                bbName(""), funcName(""), pkey(0), isRealloc(0) {}
 
 public:
-  AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID, uint32_t pkey = 0,
+  AllocSite(rust_ptr ptr, int64_t size, int64_t uniqueID,
+            std::string bbName, std::string funcName, 
+            uint32_t pkey = 0, uint8_t isRealloc = 0, 
             alloc_set_type assocSet = alloc_set_type())
-      : ptr{ptr}, size{size}, uniqueID{uniqueID}, pkey{pkey}, associatedSet{
-                                                                  assocSet} {
+      : ptr{ptr}, size{size}, uniqueID{uniqueID}, 
+      bbName{bbName}, funcName{funcName},
+      pkey{pkey}, isRealloc{isRealloc}, associatedSet{assocSet} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(uniqueID >= 0);
@@ -80,6 +90,7 @@ public:
   int64_t id() const { return uniqueID; }
 
   rust_ptr getPtr() { return ptr; }
+  rust_ptr getConstPtr() const { return ptr; }
 
   bool isValid() { return (ptr != nullptr) && (size > 0) && (uniqueID >= 0); }
 
@@ -94,13 +105,33 @@ public:
 
   uint32_t getPkey() { return pkey; }
 
+  std::string getBBName() { return bbName; }
+
+  std::string getFuncName() { return funcName; }
+
+  std::string getConstFuncName() const { return funcName; }
+
+  uint32_t isReAlloc() { return isRealloc; }
+
   // For use with re-allocation tracking. The associated set should contain all
   // previous allocation sites for a given reallocated pointer.
   alloc_set_type& getAssociatedSet() { return associatedSet; }
 
   // void clearAssociatedSet() { associatedSet.clear(); }
 
-  bool operator<(const AllocSite &ac) const { return uniqueID < ac.id(); }
+  // TODO : this is overwriting allocsites with the same ID. need to probably mix
+  // with comparing funcName
+  bool operator<(const AllocSite &ac) const { 
+    if (uniqueID == ac.id()) {
+      if (funcName.compare(ac.getConstFuncName()) == 0) {
+        ptr < ac.getConstPtr();
+      } else {
+        return funcName < ac.getConstFuncName();
+      }
+    } else {
+      return uniqueID < ac.id();
+    }
+  }
 };
 
 typedef pid_t thread_id;
@@ -301,10 +332,10 @@ public:
 } // namespace __mpk_untrusted
 extern "C" {
 __attribute__((visibility("default"))) void
-allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID);
+allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID, const char *bbName, const char *funcName);
 __attribute__((visibility("default"))) void
 reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr, int64_t oldSize,
-            int64_t uniqueID);
+            int64_t uniqueID, const char *bbName, const char *funcName);
 __attribute__((visibility("default"))) void
 deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID);
 }

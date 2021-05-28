@@ -37,13 +37,13 @@ bool MpkCallGatesLegacyPass::runOnModule(Module &M) {
 
     // and only if they may be called from outside of rust code
     // i.e., externally available or are address taken functions
-    if (!F.hasAddressTaken() || !F.hasLinkOnceLinkage() ||
-        !F.hasAvailableExternallyLinkage() || !F.hasLocalLinkage())
+    if (!(F.hasAddressTaken() || F.hasLinkOnceLinkage() ||
+        F.hasAvailableExternallyLinkage() || !F.hasLocalLinkage()))
       continue;
 
     // ignore our APIs
     if (F.getName() == "__untrusted_gate_enter" ||
-        F.getName() == "__untrusted_gate_enter") {
+        F.getName() == "__untrusted_gate_exit") {
       F.removeFnAttr("rust_api");
       continue;
     }
@@ -60,14 +60,14 @@ bool MpkCallGatesLegacyPass::runOnModule(Module &M) {
         M.getOrInsertFunction("__untrusted_gate_enter", IRB.getVoidTy());
     auto *Fn = cast<Function>(Callee); // die on sig mismatch
     Fn->addFnAttr(Attribute::NoUnwind);
-     Fn->addFnAttr(Attribute::AlwaysInline);
+    // Fn->addFnAttr(Attribute::AlwaysInline);
   }
   /* scope */ {
     auto Callee =
         M.getOrInsertFunction("__untrusted_gate_exit", IRB.getVoidTy());
     auto *Fn = cast<Function>(Callee); // die on sig mismatch
     Fn->addFnAttr(Attribute::NoUnwind);
-     Fn->addFnAttr(Attribute::AlwaysInline);
+    // Fn->addFnAttr(Attribute::AlwaysInline);
   }
 
   auto PushFn =
@@ -100,7 +100,7 @@ bool MpkCallGatesLegacyPass::runOnModule(Module &M) {
     CI->setTailCall();
     CI->setCallingConv(F->getCallingConv());
     CI->setAttributes(F->getAttributes());
-    CI->setIsNoInline();
+    //CI->setIsNoInline();
     if (F->getReturnType()->isVoidTy()) {
       Builder.CreateRetVoid();
     } else {

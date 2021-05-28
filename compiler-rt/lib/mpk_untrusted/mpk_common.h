@@ -32,4 +32,6 @@ extern std::atomic<uint64_t> AllocSiteCount;
   } while (0)
 #endif
 
+#define SINGLE_REPORT(...) __sanitizer::Report(__VA_ARGS__)
+
 #endif // MPK_COMMON_H

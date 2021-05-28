@@ -61,6 +61,8 @@ ConstantInt *getDummyID(Module &M) {
   return llvm::ConstantInt::get(IntegerType::getInt64Ty(M.getContext()), -1);
 }
 
+llvm::ConstantPointerNull *GlobalNullStr;
+
 class DynUntrustedAllocPre : public ModulePass {
 public:
   static char ID;
@@ -75,6 +77,7 @@ public:
     // Adds function hooks with dummy UniqueIDs immediately after calls
     // to __rust_alloc* functions. Additionally, we must remove the
     // NoInline attribute from RustAlloc functions.
+    GlobalNullStr = llvm::ConstantPointerNull::get(Type::getInt8PtrTy(M.getContext()));
 
     AttrBuilder attrBldr;
     attrBldr.addAttribute(Attribute::NoUnwind);
@@ -88,7 +91,9 @@ public:
         "allocHook", fnAttrs, Type::getVoidTy(M.getContext()),
         Type::getInt8PtrTy(M.getContext()),
         IntegerType::get(M.getContext(), 64),
-        IntegerType::getInt64Ty(M.getContext()));
+        IntegerType::getInt64Ty(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()));
     allocHook = cast<Function>(allocHookFunc);
     // set its linkage
     allocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
@@ -99,7 +104,9 @@ public:
         IntegerType::get(M.getContext(), 64),
         Type::getInt8PtrTy(M.getContext()),
         IntegerType::get(M.getContext(), 64),
-        IntegerType::getInt64Ty(M.getContext()));
+        IntegerType::getInt64Ty(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()));
     reallocHook = cast<Function>(reallocHookFunc);
     reallocHook->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
@@ -136,7 +143,8 @@ public:
 #endif
       return CallInst::Create(
           (Function *)allocHook,
-          {CS->getInstruction(), CS->getArgument(0), getDummyID(M)});
+          {CS->getInstruction(), CS->getArgument(0), getDummyID(M), 
+           GlobalNullStr, GlobalNullStr});
     } else if (F == M.getFunction("__rust_realloc")) {
 #ifdef MPK_STATS
       realloc_hook_counter++;
@@ -144,7 +152,7 @@ public:
       return CallInst::Create((Function *)reallocHook,
                               {CS->getInstruction(), CS->getArgument(3),
                                CS->getArgument(0), CS->getArgument(1),
-                               getDummyID(M)});
+                               getDummyID(M), GlobalNullStr, GlobalNullStr});
     } else if (F == M.getFunction("__rust_dealloc")) {
 #ifdef MPK_STATS
       dealloc_hook_counter++;
@@ -162,10 +170,10 @@ public:
       if (F.isDeclaration())
         continue;
 
-      //ReversePostOrderTraversal<Function *> RPOT(&F);
+      ReversePostOrderTraversal<Function *> RPOT(&F);
 
-      for (BasicBlock &BB : F) {
-        for (Instruction &I : BB) {
+      for (BasicBlock *BB : RPOT) {
+        for (Instruction &I : *BB) {
           CallSite CS(&I);
           if (!CS)
             continue;

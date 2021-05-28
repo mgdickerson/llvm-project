@@ -32,8 +32,10 @@ AllocSiteHandler* AllocSiteHandler::getOrInit() {
 } // namespace __mpk_untrusted
 
 extern "C" {
-void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
-  __mpk_untrusted::AllocSite site(ptr, size, uniqueID);
+void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID, const char *bbName, const char* funcName) {
+  std::string bbN(bbName);
+  std::string fnN(funcName);
+  __mpk_untrusted::AllocSite site(ptr, size, uniqueID, bbN, fnN);
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
   handler->insertAllocSite(ptr, site);
   // REPORT("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr, uniqueID);
@@ -49,15 +51,19 @@ void allocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
 /// where the oldAllocSite is added as part of the set of associated allocations
 /// for the new mapping.
 void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
-                 int64_t oldSize, int64_t uniqueID) {
+                 int64_t oldSize, int64_t uniqueID, const char *bbName, const char *funcName) {
+  std::string bbN(bbName);
+  std::string fnN(funcName);
   // Get the AllocSiteHandler and the old AllocSite for the associated oldPtr.
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
   auto assocSite = handler->getAllocSite(oldPtr);
 
   if (!assocSite.isValid()) {
     // Returned ErrorAlloc, which should not be part of the realloc chain.
-    __mpk_untrusted::AllocSite site(newPtr, newSize, uniqueID);
+    __mpk_untrusted::AllocSite site(newPtr, newSize, uniqueID, bbN, fnN);
     handler->insertAllocSite(newPtr, site);
+    REPORT("ERROR : Realloc Site: %p : %d broke realloc chain from unfound previous site: %d\n",
+            newPtr, site.id(), assocSite.id());
     return;
   }
 
@@ -72,7 +78,7 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // Create new Allocation Site for given pointer, adding the previous
   // Allocation Site and its associated set to the new AllocSite's associated
   // set.
-  __mpk_untrusted::AllocSite site(newPtr, newSize, uniqueID, 0, assocSet);
+  __mpk_untrusted::AllocSite site(newPtr, newSize, uniqueID, bbN, fnN, 0, 1, assocSet);
   handler->insertAllocSite(newPtr, site);
   // REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n",
   // oldPtr,

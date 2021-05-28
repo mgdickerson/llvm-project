@@ -55,6 +55,11 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   // Get Alloc Site information from the handler.
   auto handler = AllocSiteHandler::getOrInit();
   handler->addFaultAlloc((rust_ptr)ptr, pkey);
+  auto fault_site = handler->getAllocSite((rust_ptr)ptr);
+  if (!fault_site.isValid()) {
+    SINGLE_REPORT("ERROR : Error AllocSite on address: %p; is_safe_addr: %s\n",
+                        ptr, is_safe_address(ptr) ? "true" : "false");
+  }
   REPORT("INFO : Got Allocation Site (%d) for address: %p with pkey: %d.\n",
          handler->getAllocSite((rust_ptr)ptr).id(), ptr, pkey);
   disableMPK(si, arg);
