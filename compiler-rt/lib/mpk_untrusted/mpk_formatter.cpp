@@ -81,6 +81,8 @@ void writeJSON(std::ofstream &OS,
   for (auto fault : faultSet) {
     --items_remaining;
     OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
+       << ", \"bbName\": \"" << fault.getBBName() << "\", \"funcName\": \"" 
+       << fault.getFuncName() << "\"" << ", \"isRealloc\": " << fault.isReAlloc()
        << " }" << (items_remaining ? "," : "") << "\n";
   }
   OS << "]\n";

@@ -31,12 +31,14 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 #include <fstream>
@@ -44,6 +46,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <set>
 
 #define DEBUG_TYPE "dyn-untrusted"
 #define MPK_STATS
@@ -63,25 +66,35 @@ static cl::opt<bool>
 
 namespace {
 #ifdef MPK_STATS
-// Ensure we assign a unique ID to the same number of hooks as we made in the
+// Ensure we assign a local ID to the same number of hooks as we made in the
 // Pre pass.
 uint64_t total_hooks = 0;
 // Count the number of modified Alloc instructions
 uint64_t modified_inst_count = 0;
 #endif
 
-/// A mapping between hook function and the position of the UniqueID argument.
+/// A mapping between hook function and the position of the localID argument.
+// Note : Changed DeallocHook from 2 (correct position for index) to 
+// -1 to indicate we dont want to number this hook anymore. This is 
+// to increase stability of mapping between profiling and instrumentation
+// builds. DeallocHook does not use the localID in any meaningful way.
+// TODO : Remove localID from deallocHook.
 const static std::map<std::string, int> patchArgIndexMap = {
-    {"allocHook", 2}, {"reallocHook", 4}, {"deallocHook", 2}};
+    {"allocHook", 2}, {"reallocHook", 4}, {"deallocHook", -1 /*2*/}};
 
 // Currently only patching __rust_alloc and __rust_alloc_zeroed
 const static std::map<std::string, std::string> AllocReplacementMap = {
     {"__rust_alloc", "__rust_untrusted_alloc"},
     {"__rust_alloc_zeroed", "__rust_untrusted_alloc_zeroed"},
-    {"__rust_realloc", "__rust_untrusted_realloc"},
+};
+
+/// Map for counting total number of hooks split between type.
+static std::map<std::string, int> hookCountMap = {
+    {"allocHook", 0}, {"reallocHook", 0}, {"deallocHook", 0}
 };
 
 std::vector<Instruction *> hookList;
+std::vector<CallBase *> patchList;
 
 class IDGenerator {
   uint64_t id;
@@ -102,8 +115,10 @@ public:
 static IDGenerator IDG;
 
 struct FaultingSite {
-  uint64_t uniqueID;
+  uint64_t localID;
   uint32_t pkey;
+  std::string bbName;
+  std::string funcName;
 };
 
 class DynUntrustedAllocPost : public ModulePass {
@@ -111,7 +126,7 @@ public:
   static char ID;
   std::string mpk_profile_path;
   bool remove_hooks;
-
+  
   DynUntrustedAllocPost(std::string mpk_profile_path = "",
                         bool remove_hooks = false)
       : ModulePass(ID), mpk_profile_path(mpk_profile_path),
@@ -128,11 +143,17 @@ public:
       remove_hooks = MPKTestRemoveHooks;
 
     // Post inliner pass, iterate over all functions and find hook CallSites.
-    // Assign a unique ID in a deterministic pattern to ensure UniqueID is
+    // Assign a unique ID in a deterministic pattern to ensure localID is
     // consistent between runs.
-    assignUniqueIDs(M);
+    assignLocalIDs(M);
 
-    if (remove_hooks)
+    if (!mpk_profile_path.empty()) {
+      for (auto *allocSite : patchList) {
+        patchInstruction(M, allocSite);
+      }
+    }
+
+    if (remove_hooks) 
       removeHooks(M);
 
     removeInlineAttr(M);
@@ -146,7 +167,7 @@ public:
         "AllocSiteTotal", IntegerType::getInt64Ty(M.getContext())));
     AllocSiteTotal->setInitializer(IDG.getConstIntCount(M));
 #endif
-
+    LLVM_DEBUG(errs() << "DynUntrustedPost finish.\n");
     return true;
   }
 
@@ -163,10 +184,22 @@ public:
     if (temp_pkey < 0)
       return false;
 
-    F.uniqueID = static_cast<uint64_t>(temp_id);
-    F.pkey = static_cast<uint32_t>(temp_pkey);
+    std::string temp_bbName;
+    bool temp_bbName_result = O.map("bbName", temp_bbName);
+    if (temp_bbName.empty())
+      return false;
 
-    return O && temp_id_result && temp_pkey_result;
+    std::string temp_funcName;
+    bool temp_funcName_result = O.map("funcName", temp_funcName);
+    if (temp_funcName.empty())
+      return false;
+
+    F.localID = static_cast<uint64_t>(temp_id);
+    F.pkey = static_cast<uint32_t>(temp_pkey);
+    F.bbName = temp_bbName;
+    F.funcName = temp_funcName;
+
+    return O && temp_id_result && temp_pkey_result && temp_bbName_result && temp_funcName_result;
   }
 
   std::vector<std::string> getFaultPaths() {
@@ -213,21 +246,31 @@ public:
     return *ParseResult->getAsArray();
   }
 
-  std::map<uint64_t, FaultingSite> getFaultingAllocMap() {
-    std::map<uint64_t, FaultingSite> fault_map;
+  std::map<std::string, std::map<uint64_t, FaultingSite>> getFaultingAllocMap() {
+    std::map<std::string, std::map<uint64_t, FaultingSite>> fault_map;
     // If no path provided, return empty set.
     if (mpk_profile_path.empty())
       return fault_map;
 
     for (std::string path : getFaultPaths()) {
       auto ParseResult = parseJSONArrayFile(MemoryBuffer::getFile(path));
-      if (!ParseResult)
+      if (!ParseResult) {
+        errs() << "Error : Failed to parse file at path: " << path << "\n";
         continue;
+      }
 
       for (const auto &Alloc : ParseResult.getValue()) {
         FaultingSite FS;
-        if (fromJSON(Alloc, FS))
-          fault_map.insert(std::pair<uint64_t, FaultingSite>(FS.uniqueID, FS));
+        if (fromJSON(Alloc, FS)) {
+          auto iter = fault_map.find(FS.funcName);
+          if (iter == fault_map.end()) {
+            fault_map.emplace(FS.funcName, std::map<uint64_t, FaultingSite>());
+            iter = fault_map.find(FS.funcName);
+          }
+          iter->second.emplace(FS.localID, FS);
+        } else {
+          errs() << "Error getting Allocation Site: " << Alloc << "\n";
+        }
       }
     }
 
@@ -239,7 +282,7 @@ public:
     return F1->getName().str() > F2->getName().str();
   }
 
-  void assignUniqueIDs(Module &M) {
+  void assignLocalIDs(Module &M) {
     std::vector<Function *> WorkList;
     for (Function &F : M) {
       if (!F.isDeclaration())
@@ -251,9 +294,26 @@ public:
     LLVM_DEBUG(errs() << "Search for modified functions!\n");
 
     auto fault_map = getFaultingAllocMap();
-
+    
+    // Note on ModuleSlotTracker:
+    // The MST is used for "naming" BasicBlocks that do not already
+    // have a name by getting the module slot associated with a 
+    // BasicBlock in a given function. From testing and documentation,
+    // it appears as though BasicBlocks almost never have names (especially
+    // when building optimized binaries).
+    //
+    // The code for getting the BasicBlock numbers (and building names)
+    // is taken from llvm/lib/CodeGen/MIRPrinter.cpp functions: 
+    // - void MIRPrinter::print(const MachineFunction &MF) and 
+    // - void MIRPrinter::print(const MachineBasicBlock &MBB)
+    ModuleSlotTracker MST(&M, /*shouldInitializeAllMetaData*/ false);
+    
     for (Function *F : WorkList) {
+      MST.incorporateFunction(*F);
       ReversePostOrderTraversal<Function *> RPOT(F);
+      IDGenerator LocalIDG;
+      std::string funcName = F->getName().str();
+      auto func_fault_iter = fault_map.find(funcName);
 
       for (BasicBlock *BB : RPOT) {
         for (Instruction &I : *BB) {
@@ -270,14 +330,15 @@ public:
           auto index_iter = patchArgIndexMap.find(hook->getName().str());
           if (index_iter == patchArgIndexMap.end())
             continue;
+#ifdef MPK_STATS
+          auto hookCounter = hookCountMap.find(hook->getName().str());
+          if (hookCounter != hookCountMap.end())
+            hookCounter->second++;
+#endif
 
           auto index = index_iter->second;
-
-          // Set UniqueID for hook function
           auto callInst = CS.getInstruction();
-          auto id = IDG.getConstID(M);
-          CS.setArgument(index, id);
-
+          
 #ifdef MPK_STATS
           ++total_hooks;
 #endif
@@ -285,22 +346,60 @@ public:
           if (remove_hooks)
             hookList.push_back(callInst);
 
+          // If index == -1, then this is a deallocHook. We can skip the rest 
+          // of the code since we know we dont need to patch this call and we
+          // dont want it to be part of the count either.
+          if (index == -1)
+            continue;
+
+          // Get (or make) BasicBlock name
+          std::string bbName;
+          if (BB->getName().str().empty()) {
+            bbName = "block" + std::to_string(MST.getLocalSlot(BB));
+          } else {
+            bbName = BB->getName().str();
+          }
+
+          // Set LocalID for hook function
+          auto id = LocalIDG.getConstID(M);
+          CS.setArgument(index, id);
+          IRBuilder<> IRB(&*callInst);
+          // Set the Basic Block name, which is at index + 1
+          CS.setArgument(index + 1, IRB.CreateGlobalStringPtr(bbName));
+          // Set the Function name, which is at index + 2
+          CS.setArgument(index + 2, IRB.CreateGlobalStringPtr(funcName));
+ 
           // If provided a valid path, modify given instruction
           if (!mpk_profile_path.empty()) {
-            assert(!fault_map.empty() && "No Faulting Allocation to patch!");
-            // Get Call Instr that hook references
+            // Check to see if this function contains any faults
+            if (func_fault_iter == fault_map.end()) {
+              continue;
+            }
+
+            // Get Call Instr this hook references
             auto allocFunc = CS.getArgument(0);
             if (auto *allocInst = dyn_cast<CallBase>(allocFunc)) {
 
               // Check to see if ID is in fault set for patching
-              auto map_iter = fault_map.find(id->getZExtValue());
-              if (map_iter == fault_map.end())
+              auto &func_fault_map = func_fault_iter->second;
+              auto map_iter = func_fault_map.find(id->getZExtValue());
+              if (map_iter == func_fault_map.end()) {
                 continue;
+              }
 
+              if (bbName.compare(map_iter->second.bbName) != 0) {
+                errs() << "ERROR : Faulting allocation site found in non-matching BasicBlock:\n"
+                       << "AllocSite(" << map_iter->second.localID << ", " 
+                       << map_iter->second.funcName << ")\n"
+                       << "TraceBlock(" << map_iter->second.bbName << ") -> "
+                       << "InstrBlock(" << bbName << ")\n";
+              }
               LLVM_DEBUG(errs() << "modified callsite:\n");
               LLVM_DEBUG(errs() << *CS.getInstruction() << "\n");
 
-              patchInstruction(M, allocInst);
+              patchList.push_back(allocInst);
+            } else {
+                LLVM_DEBUG(errs() << "Alloc Func expected, found: " << *allocFunc << "\n");
             }
           }
         }
@@ -316,6 +415,8 @@ public:
 
     auto replacementFunctionName = repl_iter->second;
 
+    errs() << "Patching instruction: " << *inst << "\n";
+    
     Function *repl_func = M.getFunction(replacementFunctionName);
     if (!repl_func) {
       LLVM_DEBUG(
@@ -341,12 +442,49 @@ public:
     auto reallocHook = M.getFunction("reallocHook");
     auto deallocHook = M.getFunction("deallocHook");
 
+    // Working under the assumption that all missed cases of Hook calls is 
+    // due to the blocks containing them no longer being reachable, we remove
+    // those instructions from their respective blocks.
+    for (auto user : allocHook->users()) {
+      if (auto *inst = dyn_cast<Instruction>(user)) {
+        // TODO : Check to ensure instruction or block is unreachable
+        salvageDebugInfo(*inst);
+        inst->eraseFromParent();
+        total_hooks++;
+        hookCountMap.find("allocHook")->second++;
+      } else {
+        errs() << "User not an instruction: " << *user << "\n";
+        assert(false && "AllocHook user not an instruction!");
+      }
+    }
     allocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     allocHook->eraseFromParent();
 
+    for (auto user : reallocHook->users()) {
+      if (auto *inst = dyn_cast<Instruction>(user)) {
+       salvageDebugInfo(*inst);
+       inst->eraseFromParent();
+       total_hooks++;
+       hookCountMap.find("reallocHook")->second++;
+      } else {
+        errs() << "User not an instruction: " << *user << "\n";
+        assert(false && "ReAllocHook user not an instruction!");
+      }
+    }
     reallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     reallocHook->eraseFromParent();
 
+    for (auto user : deallocHook->users()) {
+      if (auto *inst = dyn_cast<Instruction>(user)) {
+        salvageDebugInfo(*inst);
+        inst->eraseFromParent();
+        total_hooks++;
+        hookCountMap.find("deallocHook")->second++;
+      } else {
+        errs() << "User not an instruction: " << *user << "\n";
+        assert(false && "DeAllocHook user not an instruction!");
+      }
+    }
     deallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
     deallocHook->eraseFromParent();
   }
@@ -380,7 +518,10 @@ public:
     llvm::raw_fd_ostream OS(PreStats->FD, /* shouldClose */ false);
     OS << "Number of alloc instructions modified to unsafe: "
        << modified_inst_count << "\n"
-       << "Total number hooks given a UniqueID: " << total_hooks << "\n";
+       << "Total number hooks given a LocalID: " << total_hooks << "\n"
+       << "Total allocHooks: " << hookCountMap.find("allocHook")->second << "\n"
+       << "Total reallocHooks: " << hookCountMap.find("reallocHook")->second << "\n"
+       << "Total deallocHooks: " << hookCountMap.find("deallocHook")->second << "\n";
     OS.flush();
 
     if (auto E = PreStats->keep()) {
@@ -397,7 +538,6 @@ public:
 };
 
 char DynUntrustedAllocPost::ID = 0;
-
 } // namespace
 
 INITIALIZE_PASS_BEGIN(DynUntrustedAllocPost, "dyn-untrusted-post",
