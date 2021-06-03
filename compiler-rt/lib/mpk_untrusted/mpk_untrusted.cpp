@@ -3,6 +3,10 @@
 #include "mpk_fault_handler.h"
 #include "sanitizer_common/sanitizer_common.h"
 
+struct sigaction *prevAction = nullptr;
+struct sigaction *SEGVAction = nullptr;
+struct sigaction *SIGTAction = nullptr;
+
 #ifdef MPK_STATS
 std::atomic<uint64_t> *AllocSiteUseCounter(nullptr);
 std::atomic<uint64_t> allocHookCalls(0);
@@ -12,6 +16,27 @@ std::atomic<uint64_t> AllocSiteCount(0);
 #endif
 
 extern "C" {
+void mpk_SEGV_fault_handler(void *oldact) {
+  REPORT("INFO : Replacing SEGV fault handler with ours.\n");
+  if (!SEGVAction) {
+    static struct sigaction sa;
+    memset(&sa, 0, sizeof(struct sigaction));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO;
+    sa.sa_sigaction = __mpk_untrusted::segMPKHandle;
+    SEGVAction = &sa;
+  }
+
+  if (oldact != nullptr && prevAction != nullptr) {
+    if (prevAction->sa_sigaction == __mpk_untrusted::segMPKHandle) {
+      REPORT("ERROR : Attempting to copy segMPKHandle into oldact.\n");
+    }
+    memcpy(oldact, prevAction, sizeof(struct sigaction));
+  }
+
+  sigaction(SIGSEGV, SEGVAction, prevAction);
+}
+
 extern uint64_t __attribute__((weak)) AllocSiteTotal = 0;
 
 /// Constructor will set up the segMPKHandle fault handler, and additionally
@@ -37,6 +62,9 @@ void mpk_untrusted_constructor() {
   sa.sa_flags = SA_SIGINFO;
   sa.sa_sigaction = __mpk_untrusted::segMPKHandle;
   sigaction(SIGSEGV, &sa, &sa_old);
+  if (!SEGVAction)
+    SEGVAction = &sa;
+  prevAction = &sa_old;
 
 #if SINGLE_STEP
   // If we are single stepping, we add an additional signal handler.
@@ -46,6 +74,8 @@ void mpk_untrusted_constructor() {
   sigemptyset(&sa_trap.sa_mask);
   sa_trap.sa_sigaction = __mpk_untrusted::stepMPKHandle;
   sigaction(SIGTRAP, &sa_trap, nullptr);
+  if (!SIGTAction)
+    SIGTAction = &sa_trap;
 #endif
 }
 }
