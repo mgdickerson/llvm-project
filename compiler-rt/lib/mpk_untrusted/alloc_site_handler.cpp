@@ -2,31 +2,24 @@
 
 namespace __mpk_untrusted {
 
-std::shared_ptr<AllocSite> AllocSite::AllocErr = nullptr;
-std::shared_ptr<AllocSiteHandler> AllocSiteHandler::handle = nullptr;
+AllocSiteHandler* AllocSiteHandle = nullptr;
 
-std::once_flag ErrorAllocFlag;
-std::once_flag StatsInitFlag;
 std::once_flag AllocHandlerInitFlag;
 
-void AllocSite::initError() {
-  AllocErr = std::shared_ptr<AllocSite>(new AllocSite());
-}
-
+// TODO: this can be constexpr
 /// Returns a shared pointer to the Error AllocSite.
-std::shared_ptr<AllocSite> AllocSite::error() {
-  std::call_once(ErrorAllocFlag, initError);
-  return AllocErr;
-}
+AllocSite AllocSite::error() { return AllocSite(); }
 
 void AllocSiteHandler::init() {
-  handle = std::shared_ptr<AllocSiteHandler>(new AllocSiteHandler());
+  AllocSiteHandle = new AllocSiteHandler();
   mpk_untrusted_constructor();
 }
 
-std::shared_ptr<AllocSiteHandler> AllocSiteHandler::getOrInit() {
+AllocSiteHandler* AllocSiteHandler::getOrInit() {
   std::call_once(AllocHandlerInitFlag, init);
-  return handle;
+  if (!AllocSiteHandle) 
+      REPORT("AllocSiteHandle is null!\n");
+  return AllocSiteHandle;
 }
 
 } // namespace __mpk_untrusted
@@ -56,7 +49,7 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
 
   // Get the previously associated set from the site being re-allocated and
   // add the previous site to the associated set.
-  auto assocSet = assocSite->getAssociatedSet();
+  auto assocSet = assocSite.getAssociatedSet();
   assocSet.insert(assocSite);
 
   // Remove previous Allocation Site from the mapping.
@@ -65,11 +58,10 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // Create new Allocation Site for given pointer, adding the previous
   // Allocation Site and its associated set to the new AllocSite's associated
   // set.
-  auto site = std::make_shared<__mpk_untrusted::AllocSite>(
-      newPtr, newSize, uniqueID, 0, assocSet);
+  __mpk_untrusted::AllocSite site(newPtr, newSize, uniqueID, bbN, fnN, 0, 1, assocSet);
   handler->insertAllocSite(newPtr, site);
-  REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n", oldPtr,
-         newPtr, uniqueID);
+  REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n",
+         oldPtr, newPtr, uniqueID);
 
 #ifdef MPK_STATS
   if (AllocSiteCount != 0)
@@ -87,4 +79,4 @@ void deallocHook(rust_ptr ptr, int64_t size, int64_t uniqueID) {
     deallocHookCalls++;
 #endif
 }
-}
+} // end extern "C"

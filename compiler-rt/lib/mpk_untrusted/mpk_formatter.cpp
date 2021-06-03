@@ -72,7 +72,7 @@ bool is_directory(std::string directory) {
 // Function for handwriting the JSON output we want (to remove dependency on
 // llvm/Support).
 void writeJSON(std::ofstream &OS,
-               std::set<std::shared_ptr<AllocSite>> &faultSet) {
+               std::set<AllocSite> &faultSet) {
   if (faultSet.size() <= 0)
     return;
 
@@ -80,7 +80,7 @@ void writeJSON(std::ofstream &OS,
   int64_t items_remaining = faultSet.size();
   for (auto fault : faultSet) {
     --items_remaining;
-    OS << "{ \"id\": " << fault->id() << ", \"pkey\": " << fault->getPkey()
+    OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
        << " }" << (items_remaining ? "," : "") << "\n";
   }
   OS << "]\n";
@@ -88,7 +88,7 @@ void writeJSON(std::ofstream &OS,
 
 // Writes output of the faultSet to a uniquely generated output file to ensure
 // we do not overwrite previously discovered faulting values.
-bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
+bool writeUniqueFile(std::set<AllocSite> &faultSet) {
   // Currently all results are stored by default in the folder TestResults.
   // Ensure this folder exists, or create one if it does not.
   std::string TestDirectory = "TestResults";
@@ -134,16 +134,21 @@ bool writeUniqueFile(std::set<std::shared_ptr<AllocSite>> &faultSet) {
 // allocations to disk/file.
 void flush_allocs() {
   auto handler = AllocSiteHandler::getOrInit();
-  if (handler->faultingAllocs().empty()) {
+  auto fault_set = handler->faultingAllocs();
+  if (fault_set.empty()) {
     REPORT("INFO : No faulting instructions to export, returning.\n");
     return;
   }
 
+  REPORT("INFO : Beginning faulting alloc flush.\n");
+
   // Simple method that requires either handling multiple files or a script for
   // combining them later.
-  if (!writeUniqueFile(handler->faultingAllocs()))
+  if (!writeUniqueFile(fault_set))
     REPORT("ERROR : Unable to successfully write unique files for "
            "given program run.\n");
+
+  REPORT("INFO : Finished flushing faulted allocs\n");
 }
 
 } // namespace __mpk_untrusted
