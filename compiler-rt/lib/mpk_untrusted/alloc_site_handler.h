@@ -15,7 +15,7 @@
 
 typedef int8_t *rust_ptr;
 extern "C" {
-  extern bool is_safe_address(void* addr);
+  extern bool __attribute__((weak)) is_safe_address(void* addr);
 }
 
 namespace __mpk_untrusted {
@@ -28,10 +28,10 @@ namespace __mpk_untrusted {
  * @param size Size of given allocation.
  * @param localID A function local identifier to track faulting allocations in the
  * runtime back to locations in source code.
- * @param pkey The Pkey that the given AllocationSite faulted on attempted
- * access.
  * @param bbName Name associated with containing basic block from source.
  * @param funcName Name associated with containing function from source.
+ * @param pkey The Pkey that the given AllocationSite faulted on attempted
+ * access.
  * @param isRealloc Simple marker for determining if an allocation site is
  * an alloc call or a realloc call. Mostly used for confirming results of 
  * traces.
@@ -60,9 +60,9 @@ private:
   rust_ptr ptr;
   int64_t size;
   int64_t localID;
-  uint32_t pkey;
   std::string bbName;
   std::string funcName;
+  uint32_t pkey;
   uint32_t isRealloc;
   alloc_set_type associatedSet;
   AllocSite() : ptr(nullptr), size(-1), localID(-1), 

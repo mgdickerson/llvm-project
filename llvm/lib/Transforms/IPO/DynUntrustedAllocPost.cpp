@@ -50,6 +50,7 @@
 
 #define DEBUG_TYPE "dyn-untrusted"
 #define MPK_STATS
+#define MPK_PATCH_INST_DEBUG
 
 using namespace llvm;
 
@@ -73,14 +74,20 @@ uint64_t total_hooks = 0;
 uint64_t modified_inst_count = 0;
 #endif
 
+enum HookIndex {
+  allocHookIndex = 2,
+  reallocHookIndex = 4,
+  deallocHookIndex = -1 /*2*/
+};
+
 /// A mapping between hook function and the position of the localID argument.
 // Note : Changed DeallocHook from 2 (correct position for index) to 
 // -1 to indicate we dont want to number this hook anymore. This is 
 // to increase stability of mapping between profiling and instrumentation
 // builds. DeallocHook does not use the localID in any meaningful way.
 // TODO : Remove localID from deallocHook.
-const static std::map<std::string, int> patchArgIndexMap = {
-    {"allocHook", 2}, {"reallocHook", 4}, {"deallocHook", -1 /*2*/}};
+const static std::map<std::string, HookIndex> patchArgIndexMap = {
+    {"allocHook", allocHookIndex}, {"reallocHook", reallocHookIndex}, {"deallocHook", deallocHookIndex}};
 
 // Currently only patching __rust_alloc and __rust_alloc_zeroed
 const static std::map<std::string, std::string> AllocReplacementMap = {
@@ -143,7 +150,7 @@ public:
       remove_hooks = MPKTestRemoveHooks;
 
     // Post inliner pass, iterate over all functions and find hook CallSites.
-    // Assign a unique ID in a deterministic pattern to ensure localID is
+    // Assign a unique local ID in a deterministic pattern to ensure localID is
     // consistent between runs.
     assignLocalIDs(M);
 
@@ -171,6 +178,14 @@ public:
     return true;
   }
 
+  // Reference for this function can be found in the LLVM JSON support 
+  // library documentation, `llvm/include/llvm/Support/JSON.h` titled:
+  // "Converting JSON values to C++ types". This describes a function: 
+  // fromJSON(const json::Value&, T&) -> bool
+  // which passes the JSON object as its first argument and a reference
+  // to the data structure you are deserializing as the second argument.
+  // The T/F return is in reference to the stability of the deserialized
+  // object and should be handled by the caller.
   bool fromJSON(const llvm::json::Value &Alloc, FaultingSite &F) {
     llvm::json::ObjectMapper O(Alloc);
 
@@ -346,10 +361,10 @@ public:
           if (remove_hooks)
             hookList.push_back(callInst);
 
-          // If index == -1, then this is a deallocHook. We can skip the rest 
+          // If index == deallocHookIndex, then this is a deallocHook. We can skip the rest 
           // of the code since we know we dont need to patch this call and we
           // dont want it to be part of the count either.
-          if (index == -1)
+          if (index == deallocHookIndex)
             continue;
 
           // Get (or make) BasicBlock name
@@ -415,8 +430,10 @@ public:
 
     auto replacementFunctionName = repl_iter->second;
 
+#ifdef MPK_PATCH_INST_DEBUG
     errs() << "Patching instruction: " << *inst << "\n";
-    
+#endif
+
     Function *repl_func = M.getFunction(replacementFunctionName);
     if (!repl_func) {
       LLVM_DEBUG(

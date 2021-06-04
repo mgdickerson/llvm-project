@@ -1,6 +1,12 @@
 #include "alloc_site_handler.h"
 
+extern "C" {
+  bool is_safe_address(void* addr) { return false; }
+}
+
 namespace __mpk_untrusted {
+#define DEFAULT_PKEY 0
+#define IS_REALLOC 1
 
 AllocSiteHandler* AllocSiteHandle = nullptr;
 
@@ -29,7 +35,7 @@ void allocHook(rust_ptr ptr, int64_t size, int64_t localID, const char *bbName, 
   __mpk_untrusted::AllocSite site(ptr, size, localID, bbName, funcName);
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
   handler->insertAllocSite(ptr, site);
-  REPORT("INFO : AllocSiteHook for address: %p ID: %d.\n", ptr, localID);
+  REPORT("INFO : AllocSiteHook for address: %p ID: %d bbName: %s funcName: %s.\n", ptr, localID, bbName, funcName);
 
 #ifdef MPK_STATS
   if (AllocSiteCount != 0)
@@ -67,10 +73,10 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
   // Create new Allocation Site for given pointer, adding the previous
   // Allocation Site and its associated set to the new AllocSite's associated
   // set.
-  __mpk_untrusted::AllocSite site(newPtr, newSize, localID, bbName, funcName, 0, 1, assocSet);
+  __mpk_untrusted::AllocSite site(newPtr, newSize, localID, bbName, funcName, DEFAULT_PKEY, IS_REALLOC, assocSet);
   handler->insertAllocSite(newPtr, site);
-  REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d.\n",
-         oldPtr, newPtr, localID);
+  REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d bbName: %s funcName: %s.\n",
+         oldPtr, newPtr, localID, bbName, funcName);
 
 #ifdef MPK_STATS
   if (AllocSiteCount != 0)

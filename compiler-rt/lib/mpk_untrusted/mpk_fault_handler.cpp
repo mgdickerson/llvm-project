@@ -24,12 +24,11 @@ void disableMPK(siginfo_t *si, void *arg);
 // MPK faults would be required).
 void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   if (si->si_code != SEGV_PKUERR) {
-    REPORT("INFO : SegFault other than SEGV_PKUERR, handling with "
-           "default handler.\n");
+    REPORT("INFO : SegFault other than SEGV_PKUERR.\n");
     // SignalHandler was invoked from an error other than MPK violation.
     // Perform default action instead and return.
     if (!prevAction) {
-      REPORT("ERROR : prevAction is null, no previous handler to fall back to.\n");
+      REPORT("INFO : There is no previously saved action for SIGSEGV, handling with default signal handler.\n");
       signal(sig, SIG_DFL);
       raise(sig);
       return;
@@ -97,10 +96,10 @@ void enableThreadMPK(void *arg, PendingPKeyInfo pkey_info) {
 }
 
 void disableMPK(siginfo_t *si, void *arg) {
-#if PAGE_MPK
+#ifdef PAGE_MPK
   disablePageMPK(si, arg);
 #else
-#if SINGLE_STEP
+#ifdef SINGLE_STEP_MPK
   disableThreadMPK(arg, si->si_pkey);
 
   // Set trap flag on next instruction

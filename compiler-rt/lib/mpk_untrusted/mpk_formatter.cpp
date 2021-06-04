@@ -142,7 +142,7 @@ void flush_allocs() {
     return;
   }
 
-  REPORT("INFO : Beginning faulting alloc flush.\n");
+  REPORT("INFO : Serializing faulting allocations to disk.\n");
 
   // Simple method that requires either handling multiple files or a script for
   // combining them later.
@@ -150,7 +150,7 @@ void flush_allocs() {
     REPORT("ERROR : Unable to successfully write unique files for "
            "given program run.\n");
 
-  REPORT("INFO : Finished flushing faulted allocs\n");
+  REPORT("INFO : Serialization complete.\n");
 }
 
 } // namespace __mpk_untrusted

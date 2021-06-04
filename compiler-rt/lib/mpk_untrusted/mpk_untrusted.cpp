@@ -17,7 +17,7 @@ std::atomic<uint64_t> AllocSiteCount(0);
 
 extern "C" {
 void mpk_SEGV_fault_handler(void *oldact) {
-  REPORT("INFO : Replacing SEGV fault handler with ours.\n");
+  REPORT("INFO : Replacing SIGSEGV fault handler with __mpk_untrusted::segMPKHandle.\n");
   if (!SEGVAction) {
     static struct sigaction sa;
     memset(&sa, 0, sizeof(struct sigaction));
@@ -66,7 +66,7 @@ void mpk_untrusted_constructor() {
     SEGVAction = &sa;
   prevAction = &sa_old;
 
-#if SINGLE_STEP
+#ifdef SINGLE_STEP_MPK
   // If we are single stepping, we add an additional signal handler.
   static struct sigaction sa_trap;
 

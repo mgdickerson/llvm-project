@@ -7,11 +7,14 @@
 #include <cstdio>
 #include <cstring>
 
-#define PAGE_MPK 0
-#define SINGLE_STEP 1
+// MPK Runtime mode can be set with either of the two following flags,
+// PAGE_MPK and SINGLE_STEP_MPK. If neither are defined, default is 
+// set to SINGLE_STEP_MPK.
+#if !defined(PAGE_MPK) && !defined(SINGLE_STEP_MPK)
+  #define SINGLE_STEP_MPK
+#endif
 
 // Flag for controlling optional Stats tracking
-#define MPK_STATS
 #ifdef MPK_STATS
 #include <atomic>
 
@@ -23,7 +26,6 @@ extern std::atomic<uint64_t> deallocHookCalls;
 extern std::atomic<uint64_t> AllocSiteCount;
 #endif
 
-// #define MPK_ENABLE_LOGGING
 #ifdef MPK_ENABLE_LOGGING
 #define REPORT(...) __sanitizer::Report(__VA_ARGS__)
 #else
@@ -31,5 +33,13 @@ extern std::atomic<uint64_t> AllocSiteCount;
   do {                                                                         \
   } while (0)
 #endif
+
+// SINGLE_REPORT functions as the macro above but is intended
+// for one off testing when something specific is being debugged
+// rather than a general logging macro. Unlike the `REPORT` macro
+// this one is not controlled by an `#ifdef` and thus should always
+// be removed after usage (or replaced with REPORT if logging is
+// desired long term).
+#define SINGLE_REPORT(...) __sanitizer::Report(__VA_ARGS__)
 
 #endif // MPK_COMMON_H
