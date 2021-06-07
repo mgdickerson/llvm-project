@@ -72,7 +72,7 @@ bool is_directory(std::string directory) {
 // Function for handwriting the JSON output we want (to remove dependency on
 // llvm/Support).
 void writeJSON(std::ofstream &OS,
-               std::set<AllocSite> &faultSet) {
+               std::unordered_set<AllocSite, AllocSite::Hasher> &faultSet) {
   if (faultSet.size() <= 0)
     return;
 
@@ -90,7 +90,7 @@ void writeJSON(std::ofstream &OS,
 
 // Writes output of the faultSet to a uniquely generated output file to ensure
 // we do not overwrite previously discovered faulting values.
-bool writeUniqueFile(std::set<AllocSite> &faultSet) {
+bool writeUniqueFile(std::unordered_set<AllocSite, AllocSite::Hasher> &faultSet) {
   // Currently all results are stored by default in the folder TestResults.
   // Ensure this folder exists, or create one if it does not.
   std::string TestDirectory = "TestResults";

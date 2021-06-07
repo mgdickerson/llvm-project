@@ -382,7 +382,7 @@ public:
           // Set LocalID for hook function
           auto id = LocalIDG.getConstID(M);
           CS.setArgument(index, id);
-          if (!removeHooks) {
+          if (!remove_hooks) {
             // We only want to create these global strings if they are going to be used in 
             // final program execution. When removing the hooks, skip creating (and assigning)
             // the Global String identifiers.

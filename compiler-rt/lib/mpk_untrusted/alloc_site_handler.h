@@ -127,13 +127,26 @@ public:
   // Some Additional shuffling is used in the hashing of multiple values to ensure 
   // that if the Function name and BasicBlock name happen to match, they do not 
   // cancel each other out.
-  struct AllocSiteHasher {
+  struct Hasher {
     std::size_t operator()(const AllocSite& AC) const {
       return ((std::hash<std::string>()(AC.getFuncName())
               ^ (std::hash<std::string>()(AC.getBBName()) << 1)) >> 1)
               ^ (std::hash<int64_t>()(AC.id()) << 1);
     }
   };
+
+  // Used for internal associated set.
+  bool operator<(const AllocSite &ac) const {
+    if (funcName.compare(ac.getFuncName()) == 0) {
+      if (bbName.compare(ac.getBBName()) == 0) {
+        return localID < ac.id();
+      } else {
+        return bbName < ac.getBBName();
+      }
+    } else {
+      return funcName < ac.getFuncName();
+    }
+  }
 
   // Additionally required for AllocSite to be hashable.
   bool operator==(const AllocSite &ac) const {
@@ -184,7 +197,7 @@ private:
   // allocation_map mutex
   std::mutex alloc_map_mx;
   // Set of faulting AllocationSites
-  std::unordered_set<AllocSite, AllocSite::AllocSiteHasher> fault_set;
+  std::unordered_set<AllocSite, AllocSite::Hasher> fault_set;
   // Fault set mutex
   std::mutex fault_set_mx;
   // Mapping of thread-id to saved pkey information
@@ -320,7 +333,7 @@ public:
     return ret_val;
   }
 
-  std::unordered_set<AllocSite, AllocSite::AllocSiteHasher> &faultingAllocs() {
+  std::unordered_set<AllocSite, AllocSite::Hasher> &faultingAllocs() {
     const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
     return fault_set;
   }
