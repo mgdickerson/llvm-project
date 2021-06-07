@@ -7,13 +7,6 @@
 #include <cstdio>
 #include <cstring>
 
-// MPK Runtime mode can be set with either of the two following flags,
-// PAGE_MPK and SINGLE_STEP_MPK. If neither are defined, default is 
-// set to SINGLE_STEP_MPK.
-#if !defined(PAGE_MPK) && !defined(SINGLE_STEP_MPK)
-  #define SINGLE_STEP_MPK
-#endif
-
 // Flag for controlling optional Stats tracking
 #ifdef MPK_STATS
 #include <atomic>

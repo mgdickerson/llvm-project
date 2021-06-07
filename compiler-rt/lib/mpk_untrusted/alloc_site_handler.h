@@ -11,7 +11,9 @@
 #include <mutex>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <functional>
 
 typedef int8_t *rust_ptr;
 extern "C" {
@@ -111,7 +113,7 @@ public:
 
   uint32_t getPkey() { return pkey; }
 
-  std::string getBBName() { return bbName; }
+  std::string getBBName() const { return bbName; }
 
   std::string getFuncName() const { return funcName; }
 
@@ -121,16 +123,23 @@ public:
   // previous allocation sites for a given reallocated pointer.
   alloc_set_type& getAssociatedSet() { return associatedSet; }
 
-  bool operator<(const AllocSite &ac) const {
-    if (funcName.compare(ac.getFuncName()) == 0) {
-      if (localID == ac.id()) {
-        ptr < ac.getPtr();
-      } else {
-        return localID < ac.id();
-      }
-    } else {
-      return funcName < ac.getFuncName();
+  // This struct is required for hashing the AllocSite properly in the unordered_set.
+  // Some Additional shuffling is used in the hashing of multiple values to ensure 
+  // that if the Function name and BasicBlock name happen to match, they do not 
+  // cancel each other out.
+  struct AllocSiteHasher {
+    std::size_t operator()(const AllocSite& AC) const {
+      return ((std::hash<std::string>()(AC.getFuncName())
+              ^ (std::hash<std::string>()(AC.getBBName()) << 1)) >> 1)
+              ^ (std::hash<int64_t>()(AC.id()) << 1);
     }
+  };
+
+  // Additionally required for AllocSite to be hashable.
+  bool operator==(const AllocSite &ac) const {
+    return funcName.compare(ac.getFuncName()) == 0
+           && bbName.compare(ac.getBBName()) == 0
+           && localID == ac.id();
   }
 };
 
@@ -175,7 +184,7 @@ private:
   // allocation_map mutex
   std::mutex alloc_map_mx;
   // Set of faulting AllocationSites
-  std::set<AllocSite> fault_set;
+  std::unordered_set<AllocSite, AllocSite::AllocSiteHasher> fault_set;
   // Fault set mutex
   std::mutex fault_set_mx;
   // Mapping of thread-id to saved pkey information
@@ -311,7 +320,7 @@ public:
     return ret_val;
   }
 
-  std::set<AllocSite> &faultingAllocs() {
+  std::unordered_set<AllocSite, AllocSite::AllocSiteHasher> &faultingAllocs() {
     const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
     return fault_set;
   }

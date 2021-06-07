@@ -41,6 +41,7 @@
 #include <string>
 
 #define DEBUG_TYPE "dyn-untrusted"
+// Used for printing compile time statistics for DynUntrustedAllocPre pass.
 #define MPK_STATS
 
 using namespace llvm;

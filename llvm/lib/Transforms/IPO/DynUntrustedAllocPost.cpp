@@ -49,8 +49,8 @@
 #include <set>
 
 #define DEBUG_TYPE "dyn-untrusted"
+// Used for printing compile time statistics for DynUntrustedAllocPost pass.
 #define MPK_STATS
-#define MPK_PATCH_INST_DEBUG
 
 using namespace llvm;
 
@@ -64,6 +64,10 @@ static cl::opt<bool>
     MPKTestRemoveHooks("mpk-test-remove-hooks", cl::init(false), cl::Hidden,
                        cl::desc("Remove hook instructions. This is mainly"
                                 "for test purpose."));
+
+static cl::opt<bool>
+    MPKVerbosePatching("mpk-verbose-patching", cl::init(false), cl::Hidden,
+                       cl::desc("Print out patched instructions on instrumentation pass."));
 
 namespace {
 #ifdef MPK_STATS
@@ -184,7 +188,7 @@ public:
   // fromJSON(const json::Value&, T&) -> bool
   // which passes the JSON object as its first argument and a reference
   // to the data structure you are deserializing as the second argument.
-  // The T/F return is in reference to the stability of the deserialized
+  // The boolean return is in reference to the stability of the deserialized
   // object and should be handled by the caller.
   bool fromJSON(const llvm::json::Value &Alloc, FaultingSite &F) {
     llvm::json::ObjectMapper O(Alloc);
@@ -378,12 +382,17 @@ public:
           // Set LocalID for hook function
           auto id = LocalIDG.getConstID(M);
           CS.setArgument(index, id);
-          IRBuilder<> IRB(&*callInst);
-          // Set the Basic Block name, which is at index + 1
-          CS.setArgument(index + 1, IRB.CreateGlobalStringPtr(bbName));
-          // Set the Function name, which is at index + 2
-          CS.setArgument(index + 2, IRB.CreateGlobalStringPtr(funcName));
- 
+          if (!removeHooks) {
+            // We only want to create these global strings if they are going to be used in 
+            // final program execution. When removing the hooks, skip creating (and assigning)
+            // the Global String identifiers.
+            IRBuilder<> IRB(&*callInst);
+            // Set the Basic Block name, which is at index + 1
+            CS.setArgument(index + 1, IRB.CreateGlobalStringPtr(bbName));
+            // Set the Function name, which is at index + 2
+            CS.setArgument(index + 2, IRB.CreateGlobalStringPtr(funcName));
+          }
+
           // If provided a valid path, modify given instruction
           if (!mpk_profile_path.empty()) {
             // Check to see if this function contains any faults
@@ -430,9 +439,8 @@ public:
 
     auto replacementFunctionName = repl_iter->second;
 
-#ifdef MPK_PATCH_INST_DEBUG
-    errs() << "Patching instruction: " << *inst << "\n";
-#endif
+    if (MPKVerbosePatching)
+      errs() << "Patching instruction: " << *inst << "\n";
 
     Function *repl_func = M.getFunction(replacementFunctionName);
     if (!repl_func) {
@@ -449,6 +457,29 @@ public:
 #endif
   }
 
+  // Working under the assumption that all missed cases of Hook calls is 
+  // due to the blocks containing them no longer being reachable, we remove
+  // those instructions from their respective blocks.
+  void removeFunctionUsers(Function *F) {
+    for (auto user : F->users()) {
+      if (auto *inst = dyn_cast<Instruction>(user)) {
+        salvageDebugInfo(*inst);
+        inst->eraseFromParent();
+#ifdef MPK_STATS
+        total_hooks++;
+        auto trackedHook = hookCountMap.find(F->getName().str());
+        if (trackedHook != hookCountMap.end())
+          trackedHook->second++;
+#endif
+      } else {
+        errs() << "User not an instruction: " << *user << "\n";
+        assert(false && "Function user not an instruction!");
+      }
+    }
+    F->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+    F->eraseFromParent();
+  }
+
   void removeHooks(Module &M) {
     for (auto inst : hookList) {
       salvageDebugInfo(*inst);
@@ -456,54 +487,16 @@ public:
     }
 
     auto allocHook = M.getFunction("allocHook");
+    if (allocHook)
+      removeFunctionUsers(allocHook);
+
     auto reallocHook = M.getFunction("reallocHook");
+    if (reallocHook)
+      removeFunctionUsers(reallocHook);
+    
     auto deallocHook = M.getFunction("deallocHook");
-
-    // Working under the assumption that all missed cases of Hook calls is 
-    // due to the blocks containing them no longer being reachable, we remove
-    // those instructions from their respective blocks.
-    for (auto user : allocHook->users()) {
-      if (auto *inst = dyn_cast<Instruction>(user)) {
-        // TODO : Check to ensure instruction or block is unreachable
-        salvageDebugInfo(*inst);
-        inst->eraseFromParent();
-        total_hooks++;
-        hookCountMap.find("allocHook")->second++;
-      } else {
-        errs() << "User not an instruction: " << *user << "\n";
-        assert(false && "AllocHook user not an instruction!");
-      }
-    }
-    allocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-    allocHook->eraseFromParent();
-
-    for (auto user : reallocHook->users()) {
-      if (auto *inst = dyn_cast<Instruction>(user)) {
-       salvageDebugInfo(*inst);
-       inst->eraseFromParent();
-       total_hooks++;
-       hookCountMap.find("reallocHook")->second++;
-      } else {
-        errs() << "User not an instruction: " << *user << "\n";
-        assert(false && "ReAllocHook user not an instruction!");
-      }
-    }
-    reallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-    reallocHook->eraseFromParent();
-
-    for (auto user : deallocHook->users()) {
-      if (auto *inst = dyn_cast<Instruction>(user)) {
-        salvageDebugInfo(*inst);
-        inst->eraseFromParent();
-        total_hooks++;
-        hookCountMap.find("deallocHook")->second++;
-      } else {
-        errs() << "User not an instruction: " << *user << "\n";
-        assert(false && "DeAllocHook user not an instruction!");
-      }
-    }
-    deallocHook->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-    deallocHook->eraseFromParent();
+    if (deallocHook)
+      removeFunctionUsers(deallocHook);
   }
 
   /// Iterate all Functions of Module M, remove NoInline attribute from

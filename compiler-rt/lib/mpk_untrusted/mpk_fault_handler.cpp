@@ -28,7 +28,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
     // SignalHandler was invoked from an error other than MPK violation.
     // Perform default action instead and return.
     if (!prevAction) {
-      REPORT("INFO : There is no previously saved action for SIGSEGV, handling with default signal handler.\n");
+      REPORT("INFO : No existing SIGSEGV handler, falling back to default signal handler.\n");
       signal(sig, SIG_DFL);
       raise(sig);
       return;
@@ -96,18 +96,15 @@ void enableThreadMPK(void *arg, PendingPKeyInfo pkey_info) {
 }
 
 void disableMPK(siginfo_t *si, void *arg) {
-#ifdef PAGE_MPK
-  disablePageMPK(si, arg);
-#else
-#ifdef SINGLE_STEP_MPK
+#ifndef PAGE_MPK
+  // If PAGE_MPK not defined, default to Single Step
   disableThreadMPK(arg, si->si_pkey);
 
   // Set trap flag on next instruction
   ucontext_t *uctxt = (ucontext_t *)arg;
   uctxt->uc_mcontext.gregs[REG_EFL] |= TF;
 #else
-  // TODO : emulateMPK();
-#endif
+  disablePageMPK(si, arg);
 #endif
 }
 

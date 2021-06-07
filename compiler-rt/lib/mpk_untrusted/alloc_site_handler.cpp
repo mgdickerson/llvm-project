@@ -57,7 +57,7 @@ void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
     // Returned ErrorAlloc, which should not be part of the realloc chain.
     __mpk_untrusted::AllocSite site(newPtr, newSize, localID, bbName, funcName);
     handler->insertAllocSite(newPtr, site);
-    REPORT("ERROR<AllocSite> : Realloc Site: %p : %d could not find the associated previous allocation: %d\n",
+    REPORT("ERROR<AllocSite> : Realloc Site: %p : %d could not find the previous allocation: %d\n",
             newPtr, site.id(), assocSite.id());
     return;
   }

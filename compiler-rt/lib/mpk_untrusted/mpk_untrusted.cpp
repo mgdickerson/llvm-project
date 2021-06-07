@@ -66,7 +66,8 @@ void mpk_untrusted_constructor() {
     SEGVAction = &sa;
   prevAction = &sa_old;
 
-#ifdef SINGLE_STEP_MPK
+// If PAGE_MPK is not defined, default to Single Step
+#ifndef PAGE_MPK
   // If we are single stepping, we add an additional signal handler.
   static struct sigaction sa_trap;
 
