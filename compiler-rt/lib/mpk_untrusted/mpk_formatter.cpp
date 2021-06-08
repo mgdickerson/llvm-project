@@ -71,8 +71,7 @@ bool is_directory(std::string directory) {
 
 // Function for handwriting the JSON output we want (to remove dependency on
 // llvm/Support).
-void writeJSON(std::ofstream &OS,
-               std::unordered_set<AllocSite, AllocSite::Hasher> &faultSet) {
+void writeJSON(std::ofstream &OS, std::unordered_set<AllocSite> &faultSet) {
   if (faultSet.size() <= 0)
     return;
 
@@ -81,16 +80,17 @@ void writeJSON(std::ofstream &OS,
   for (auto fault : faultSet) {
     --items_remaining;
     OS << "{ \"id\": " << fault.id() << ", \"pkey\": " << fault.getPkey()
-       << ", \"bbName\": \"" << fault.getBBName() << "\", \"funcName\": \"" 
-       << fault.getFuncName() << "\"" << ", \"isRealloc\": " << fault.isReAlloc()
-       << " }" << (items_remaining ? "," : "") << "\n";
+       << ", \"bbName\": \"" << fault.getBBName() << "\", \"funcName\": \""
+       << fault.getFuncName() << "\""
+       << ", \"isRealloc\": " << (fault.isReAlloc() ? "true" : "false") << " }"
+       << (items_remaining ? "," : "") << "\n";
   }
   OS << "]\n";
 }
 
 // Writes output of the faultSet to a uniquely generated output file to ensure
 // we do not overwrite previously discovered faulting values.
-bool writeUniqueFile(std::unordered_set<AllocSite, AllocSite::Hasher> &faultSet) {
+bool writeUniqueFile(std::unordered_set<AllocSite> &faultSet) {
   // Currently all results are stored by default in the folder TestResults.
   // Ensure this folder exists, or create one if it does not.
   std::string TestDirectory = "TestResults";

@@ -6,6 +6,7 @@
 #include "llvm/ADT/Optional.h"
 
 #include <cassert>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -13,11 +14,10 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
-#include <functional>
 
 typedef int8_t *rust_ptr;
 extern "C" {
-  extern bool __attribute__((weak)) is_safe_address(void* addr);
+extern bool __attribute__((weak)) is_safe_address(void *addr);
 }
 
 namespace __mpk_untrusted {
@@ -28,27 +28,27 @@ namespace __mpk_untrusted {
  *
  * @param ptr Pointer to allocated memory.
  * @param size Size of given allocation.
- * @param localID A function local identifier to track faulting allocations in the
- * runtime back to locations in source code.
+ * @param localID A function local identifier to track faulting allocations in
+ * the runtime back to locations in source code.
  * @param bbName Name associated with containing basic block from source.
  * @param funcName Name associated with containing function from source.
  * @param pkey The Pkey that the given AllocationSite faulted on attempted
  * access.
  * @param isRealloc Simple marker for determining if an allocation site is
- * an alloc call or a realloc call. Mostly used for confirming results of 
+ * an alloc call or a realloc call. Mostly used for confirming results of
  * traces.
  * @param associatedSet Set for tracking re-allocations across AllocationSites.
  *
  *
  * @note For each call to alloc (and realloc), an AllocSite will be created to
  * track the pointer of the allocation, the size of the allocation, and a
- * <localID, basicBlockName, funcName> tuple for tracking the call to alloc back 
- * to its position in the source code. This information is intended to be used in 
- * the compilation process for changing Allocation Site found to be unsafe to unsafe 
- * alloc calls. Calls to realloc will first find AllocSites that are being tracked 
- * under the given pointer, then add them to the associated set of the newly generated 
- * AllocSite to ensure that if a reallocated site is found to be unsafe, the original
- * allocation can also be marked unsafe.
+ * <localID, basicBlockName, funcName> tuple for tracking the call to alloc back
+ * to its position in the source code. This information is intended to be used
+ * in the compilation process for changing Allocation Site found to be unsafe to
+ * unsafe alloc calls. Calls to realloc will first find AllocSites that are
+ * being tracked under the given pointer, then add them to the associated set of
+ * the newly generated AllocSite to ensure that if a reallocated site is found
+ * to be unsafe, the original allocation can also be marked unsafe.
  *
  * @note A note on thread safety: The only parameter that is changed at any
  * point after object creation is the PKey that the object faults on, thus this
@@ -56,8 +56,6 @@ namespace __mpk_untrusted {
  * this value is behind a mutex inside AllocSiteHandler::addFaultAlloc().
  */
 class AllocSite {
-  typedef std::set<AllocSite> alloc_set_type;
-
 private:
   rust_ptr ptr;
   int64_t size;
@@ -65,19 +63,15 @@ private:
   std::string bbName;
   std::string funcName;
   uint32_t pkey;
-  uint32_t isRealloc;
-  alloc_set_type associatedSet;
-  AllocSite() : ptr(nullptr), size(-1), localID(-1), 
-                bbName(""), funcName(""), pkey(0), isRealloc(0) {}
+  bool isRealloc;
+  AllocSite()
+      : ptr(nullptr), size(-1), localID(-1), pkey(0), isRealloc(false) {}
 
 public:
-  AllocSite(rust_ptr ptr, int64_t size, int64_t localID,
-            std::string bbName, std::string funcName, 
-            uint32_t pkey = 0, uint8_t isRealloc = 0, 
-            alloc_set_type assocSet = alloc_set_type())
-      : ptr{ptr}, size{size}, localID{localID}, 
-      bbName{bbName}, funcName{funcName},
-      pkey{pkey}, isRealloc{isRealloc}, associatedSet{assocSet} {
+  AllocSite(rust_ptr ptr, int64_t size, int64_t localID, std::string bbName,
+            std::string funcName, uint32_t pkey = 0, bool isRealloc = false)
+      : ptr{ptr}, size{size}, localID{localID}, bbName{bbName},
+        funcName{funcName}, pkey{pkey}, isRealloc{isRealloc} {
     assert(ptr != nullptr);
     assert(size > 0);
     assert(localID >= 0);
@@ -99,7 +93,7 @@ public:
   int64_t id() const { return localID; }
 
   rust_ptr getPtr() const { return ptr; }
- 
+
   bool isValid() { return (ptr != nullptr) && (size > 0) && (localID >= 0); }
 
   // When a given allocation site faults, we add the pkey that the request
@@ -117,42 +111,16 @@ public:
 
   std::string getFuncName() const { return funcName; }
 
-  uint32_t isReAlloc() { return isRealloc; }
+  bool isReAlloc() { return isRealloc; }
 
   // For use with re-allocation tracking. The associated set should contain all
   // previous allocation sites for a given reallocated pointer.
-  alloc_set_type& getAssociatedSet() { return associatedSet; }
-
-  // This struct is required for hashing the AllocSite properly in the unordered_set.
-  // Some Additional shuffling is used in the hashing of multiple values to ensure 
-  // that if the Function name and BasicBlock name happen to match, they do not 
-  // cancel each other out.
-  struct Hasher {
-    std::size_t operator()(const AllocSite& AC) const {
-      return ((std::hash<std::string>()(AC.getFuncName())
-              ^ (std::hash<std::string>()(AC.getBBName()) << 1)) >> 1)
-              ^ (std::hash<int64_t>()(AC.id()) << 1);
-    }
-  };
-
-  // Used for internal associated set.
-  bool operator<(const AllocSite &ac) const {
-    if (funcName.compare(ac.getFuncName()) == 0) {
-      if (bbName.compare(ac.getBBName()) == 0) {
-        return localID < ac.id();
-      } else {
-        return bbName < ac.getBBName();
-      }
-    } else {
-      return funcName < ac.getFuncName();
-    }
-  }
+  // alloc_set_type &getAssociatedSet() { return associatedSet; }
 
   // Additionally required for AllocSite to be hashable.
   bool operator==(const AllocSite &ac) const {
-    return funcName.compare(ac.getFuncName()) == 0
-           && bbName.compare(ac.getBBName()) == 0
-           && localID == ac.id();
+    return funcName.compare(ac.getFuncName()) == 0 &&
+           bbName.compare(ac.getBBName()) == 0 && localID == ac.id();
   }
 };
 
@@ -174,6 +142,22 @@ public:
       : pkey(pkey), access_rights(access_rights) {}
 };
 
+} // namespace __mpk_untrusted
+
+namespace std {
+template <> struct hash<__mpk_untrusted::AllocSite> {
+  std::size_t operator()(const __mpk_untrusted::AllocSite &AS) const {
+    return ((std::hash<std::string>()(AS.getFuncName()) ^
+             (std::hash<std::string>()(AS.getBBName()) << 1)) >>
+            1) ^
+           (std::hash<int64_t>()(AS.id()) << 1);
+  }
+};
+
+} // namespace std
+
+namespace __mpk_untrusted {
+
 /**
  * @brief A Class that handles mapping of pointers to allocation sites,
  * collecting the set of faulted allocation sites, and tracking PendingPKeyInfo
@@ -191,13 +175,16 @@ public:
  * mutex.
  */
 class AllocSiteHandler {
+  using alloc_set_t = std::unordered_set<AllocSite>;
+  using realloc_map_t = std::unordered_map<AllocSite, alloc_set_t>;
+
 private:
   // Mapping from memory location pointer to AllocationSite
   std::map<rust_ptr, AllocSite> allocation_map;
   // allocation_map mutex
   std::mutex alloc_map_mx;
   // Set of faulting AllocationSites
-  std::unordered_set<AllocSite, AllocSite::Hasher> fault_set;
+  alloc_set_t fault_set;
   // Fault set mutex
   std::mutex fault_set_mx;
   // Mapping of thread-id to saved pkey information
@@ -205,12 +192,16 @@ private:
   // pkey_by_tid_map mutex
   std::mutex pkey_tid_map_mx;
 
+  // Map AllocSites to their reallocation chain
+  realloc_map_t FM;
+  std::mutex realloc_map_mx;
+
 public:
   AllocSiteHandler() = default;
   ~AllocSiteHandler() {}
 
   static void init();
-  static AllocSiteHandler* getOrInit();
+  static AllocSiteHandler *getOrInit();
 
   bool empty() { return allocation_map.empty(); }
 
@@ -292,10 +283,18 @@ public:
     alloc.addPkey(pkey);
     fault_set.insert(alloc);
 
+    // Note: no other code tries to take this lock and also lock the fault map
+    // if that changes, the locking logic will need to be updated
+    const std::lock_guard<std::mutex> guard(realloc_map_mx);
+    auto it = FM.find(alloc);
+    if (it == FM.end()) {
+      return;
+    }
+
     // For each Allocation Site in the associated set, add them to the fault_set
     // as well. Thus if a reallocated pointer faults, all associated allocation
     // sites are also marked as being unsafe.
-    for (auto assoc : alloc.getAssociatedSet()) {
+    for (auto assoc : it->second) {
       assoc.addPkey(pkey);
       fault_set.insert(assoc);
 #ifdef MPK_STATS
@@ -333,15 +332,34 @@ public:
     return ret_val;
   }
 
-  std::unordered_set<AllocSite, AllocSite::Hasher> &faultingAllocs() {
+  std::unordered_set<AllocSite> &faultingAllocs() {
     const std::lock_guard<std::mutex> fault_set_guard(fault_set_mx);
     return fault_set;
   }
+
+  /// extend realloc chain for newAS with the realloc chain from oldAS
+  void updateReallocChain(const AllocSite &oldAS, const AllocSite &newAS) {
+    const std::lock_guard<std::mutex> guard(realloc_map_mx);
+    auto it = FM.find(oldAS);
+    if (it == FM.end()) {
+      alloc_set_t AS;
+      AS.emplace(oldAS);
+      FM.emplace(newAS, AS);
+      return;
+    }
+
+    alloc_set_t realloc_chain = it->second;
+    realloc_chain.emplace(oldAS);
+    FM.emplace(newAS, realloc_chain);
+  }
 };
+
 } // namespace __mpk_untrusted
+
 extern "C" {
 __attribute__((visibility("default"))) void
-allocHook(rust_ptr ptr, int64_t size, int64_t localID, const char *bbName, const char *funcName);
+allocHook(rust_ptr ptr, int64_t size, int64_t localID, const char *bbName,
+          const char *funcName);
 __attribute__((visibility("default"))) void
 reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr, int64_t oldSize,
             int64_t localID, const char *bbName, const char *funcName);

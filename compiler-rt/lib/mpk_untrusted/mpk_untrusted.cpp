@@ -2,6 +2,7 @@
 #include "mpk_common.h"
 #include "mpk_fault_handler.h"
 #include "sanitizer_common/sanitizer_common.h"
+#include <cstdint>
 
 struct sigaction *prevAction = nullptr;
 struct sigaction *SEGVAction = nullptr;
@@ -17,7 +18,8 @@ std::atomic<uint64_t> AllocSiteCount(0);
 
 extern "C" {
 void mpk_SEGV_fault_handler(void *oldact) {
-  REPORT("INFO : Replacing SIGSEGV fault handler with __mpk_untrusted::segMPKHandle.\n");
+  REPORT("INFO : Replacing SIGSEGV fault handler with "
+         "__mpk_untrusted::segMPKHandle.\n");
   if (!SEGVAction) {
     static struct sigaction sa;
     memset(&sa, 0, sizeof(struct sigaction));

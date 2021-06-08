@@ -1,19 +1,18 @@
 #include "alloc_site_handler.h"
 
 extern "C" {
-  bool is_safe_address(void* addr) { return false; }
+bool is_safe_address(void *addr) { return false; }
 }
 
 namespace __mpk_untrusted {
 #define DEFAULT_PKEY 0
-#define IS_REALLOC 1
 
-AllocSiteHandler* AllocSiteHandle = nullptr;
+
+AllocSiteHandler *AllocSiteHandle = nullptr;
 
 std::once_flag AllocHandlerInitFlag;
 
 // TODO: this can be constexpr
-/// Returns a shared pointer to the Error AllocSite.
 AllocSite AllocSite::error() { return AllocSite(); }
 
 void AllocSiteHandler::init() {
@@ -21,21 +20,24 @@ void AllocSiteHandler::init() {
   mpk_untrusted_constructor();
 }
 
-AllocSiteHandler* AllocSiteHandler::getOrInit() {
+AllocSiteHandler *AllocSiteHandler::getOrInit() {
   std::call_once(AllocHandlerInitFlag, init);
-  if (!AllocSiteHandle) 
-      REPORT("AllocSiteHandle is null!\n");
+  if (!AllocSiteHandle)
+    REPORT("AllocSiteHandle is null!\n");
   return AllocSiteHandle;
 }
 
 } // namespace __mpk_untrusted
 
 extern "C" {
-void allocHook(rust_ptr ptr, int64_t size, int64_t localID, const char *bbName, const char* funcName) {
+void allocHook(rust_ptr ptr, int64_t size, int64_t localID, const char *bbName,
+               const char *funcName) {
   __mpk_untrusted::AllocSite site(ptr, size, localID, bbName, funcName);
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
   handler->insertAllocSite(ptr, site);
-  REPORT("INFO : AllocSiteHook for address: %p ID: %d bbName: %s funcName: %s.\n", ptr, localID, bbName, funcName);
+  REPORT(
+      "INFO : AllocSiteHook for address: %p ID: %d bbName: %s funcName: %s.\n",
+      ptr, localID, bbName, funcName);
 
 #ifdef MPK_STATS
   if (AllocSiteCount != 0)
@@ -48,34 +50,35 @@ void allocHook(rust_ptr ptr, int64_t size, int64_t localID, const char *bbName, 
 /// where the oldAllocSite is added as part of the set of associated allocations
 /// for the new mapping.
 void reallocHook(rust_ptr newPtr, int64_t newSize, rust_ptr oldPtr,
-                 int64_t oldSize, int64_t localID, const char *bbName, const char *funcName) {
+                 int64_t oldSize, int64_t localID, const char *bbName,
+                 const char *funcName) {
   // Get the AllocSiteHandler and the old AllocSite for the associated oldPtr.
   auto handler = __mpk_untrusted::AllocSiteHandler::getOrInit();
-  auto assocSite = handler->getAllocSite(oldPtr);
+  auto oldAS = handler->getAllocSite(oldPtr);
 
-  if (!assocSite.isValid()) {
+  if (!oldAS.isValid()) {
     // Returned ErrorAlloc, which should not be part of the realloc chain.
     __mpk_untrusted::AllocSite site(newPtr, newSize, localID, bbName, funcName);
     handler->insertAllocSite(newPtr, site);
-    REPORT("ERROR<AllocSite> : Realloc Site: %p : %d could not find the previous allocation: %d\n",
-            newPtr, site.id(), assocSite.id());
+    REPORT("ERROR<AllocSite> : Realloc Site: %p : %d could not find the "
+           "previous allocation: %d\n",
+           newPtr, site.id(), assocSite.id());
     return;
   }
 
+  __mpk_untrusted::AllocSite newAS(newPtr, newSize, localID, bbName, funcName,
+                                   DEFAULT_PKEY, true);
+
   // Get the previously associated set from the site being re-allocated and
   // add the previous site to the associated set.
-  auto assocSet = assocSite.getAssociatedSet();
-  assocSet.insert(assocSite);
+  handler->updateReallocChain(oldAS, newAS);
 
   // Remove previous Allocation Site from the mapping.
   handler->removeAllocSite(oldPtr);
 
-  // Create new Allocation Site for given pointer, adding the previous
-  // Allocation Site and its associated set to the new AllocSite's associated
-  // set.
-  __mpk_untrusted::AllocSite site(newPtr, newSize, localID, bbName, funcName, DEFAULT_PKEY, IS_REALLOC, assocSet);
-  handler->insertAllocSite(newPtr, site);
-  REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d bbName: %s funcName: %s.\n",
+  handler->insertAllocSite(newPtr, newAS);
+  REPORT("INFO : ReallocSiteHook for oldptr: %p, newptr: %p, ID: %d bbName: %s "
+         "funcName: %s.\n",
          oldPtr, newPtr, localID, bbName, funcName);
 
 #ifdef MPK_STATS

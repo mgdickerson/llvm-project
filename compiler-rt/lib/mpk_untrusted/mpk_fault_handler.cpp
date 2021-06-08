@@ -28,7 +28,8 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
     // SignalHandler was invoked from an error other than MPK violation.
     // Perform default action instead and return.
     if (!prevAction) {
-      REPORT("INFO : No existing SIGSEGV handler, falling back to default signal handler.\n");
+      REPORT("INFO : No existing SIGSEGV handler, falling back to default "
+             "signal handler.\n");
       signal(sig, SIG_DFL);
       raise(sig);
       return;
@@ -57,7 +58,7 @@ void segMPKHandle(int sig, siginfo_t *si, void *arg) {
   auto fault_site = handler->getAllocSite((rust_ptr)ptr);
   if (!fault_site.isValid()) {
     SINGLE_REPORT("ERROR : Error AllocSite on address: %p; is_safe_addr: %s\n",
-                        ptr, is_safe_address(ptr) ? "true" : "false");
+                  ptr, is_safe_address(ptr) ? "true" : "false");
   }
   REPORT("INFO : Got Allocation Site (%d) for address: %p with pkey: %d.\n",
          handler->getAllocSite((rust_ptr)ptr).id(), ptr, pkey);
