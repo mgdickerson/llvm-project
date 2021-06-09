@@ -4,6 +4,7 @@
 #include "sanitizer_common/sanitizer_common.h"
 #include <cstdint>
 
+
 struct sigaction *prevAction = nullptr;
 struct sigaction *SEGVAction = nullptr;
 struct sigaction *SIGTAction = nullptr;
